@@ -1,2 +1,5 @@
 obj/
 castaway
+*.st
+*.msa
+*.log

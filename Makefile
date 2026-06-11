@@ -23,7 +23,7 @@ CFLAGS = $(OPTS) $(DEFS) $(WRNS) $(INCS) $(SDLFLAGS)
 # source code 
 #
 
-CPU_CSRC = 68000.c debug.c op68kadd.c op68karith.c op68ksub.c op68klogop.c \
+CPU_CSRC = 68000.c debug.c savestate_stub.c op68kadd.c op68karith.c op68ksub.c op68klogop.c \
            op68kmisc.c op68kmove.c op68kshift.c
 
 EMU_CSRC = init.c st.c mem.c ikbd.c blitter.c fdc.c sound.c

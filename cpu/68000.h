@@ -238,6 +238,7 @@ extern int             stop_on;
 extern int             verb_on;
 /* go to sleep (gives debugger a chance to attach) */
 void            DebugStop(void);
+extern void SaveState(uint16 inst);
 #ifdef TRACEBACK
 /*
  * execution trace

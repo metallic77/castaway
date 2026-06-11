@@ -597,6 +597,7 @@ int     keysymToAtari(SDL_keysym keysym)
 void    Main_EventHandler(void)
 {
     SDL_Event event;
+    static uint8 joystick1_state = 0;
 
     /* Just process events, if there */
     if( SDL_PollEvent(&event) ) {
@@ -615,9 +616,20 @@ void    Main_EventHandler(void)
             if( sym==SDLK_PAUSE && shifted ) {
                 exit(0);
             }
+            /* Joystick 1 emulation via cursor keys + left ctrl */
+            if (sym == SDLK_UP)    { IkbdJoystickChange(1, joystick1_state |= 0x01); break; }
+            if (sym == SDLK_DOWN)  { IkbdJoystickChange(1, joystick1_state |= 0x02); break; }
+            if (sym == SDLK_LEFT)  { IkbdJoystickChange(1, joystick1_state |= 0x04); break; }
+            if (sym == SDLK_RIGHT) { IkbdJoystickChange(1, joystick1_state |= 0x08); break; }
+            if (sym == SDLK_LCTRL) { IkbdJoystickChange(1, joystick1_state |= 0x80); break; }
             IkbdKeyPress(keysymToAtari(keysym));
             break;
         case SDL_KEYUP:
+            if (sym == SDLK_UP)    { IkbdJoystickChange(1, joystick1_state &= ~0x01); break; }
+            if (sym == SDLK_DOWN)  { IkbdJoystickChange(1, joystick1_state &= ~0x02); break; }
+            if (sym == SDLK_LEFT)  { IkbdJoystickChange(1, joystick1_state &= ~0x04); break; }
+            if (sym == SDLK_RIGHT) { IkbdJoystickChange(1, joystick1_state &= ~0x08); break; }
+            if (sym == SDLK_LCTRL) { IkbdJoystickChange(1, joystick1_state &= ~0x80); break; }
             IkbdKeyRelease(keysymToAtari(keysym)|0x80);
             break;
         case SDL_MOUSEMOTION:
