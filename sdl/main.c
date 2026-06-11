@@ -268,9 +268,9 @@ void    Redraw(void)
         unsigned char bg_color = ~fg_color;
         vid_flag = 0;
         for (i = 0; i < 16; i++) {
-            color[i].b = 17 * (vid_col[i] & 0x7);
-            color[i].g = 17 * ((vid_col[i] >> 4) & 0x7);
-            color[i].r = 17 * ((vid_col[i] >> 8) & 0x7);
+            color[i].b = 36 * (vid_col[i] & 0x7);
+            color[i].g = 36 * ((vid_col[i] >> 4) & 0x7);
+            color[i].r = 36 * ((vid_col[i] >> 8) & 0x7);
         }
         if (vid_shiftmode == MONO) {
             color[0].b = fg_color;
