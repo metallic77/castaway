@@ -26,7 +26,7 @@ CFLAGS = $(OPTS) $(DEFS) $(WRNS) $(INCS) $(SDLFLAGS)
 CPU_CSRC = 68000.c debug.c op68kadd.c op68karith.c op68ksub.c op68klogop.c \
            op68kmisc.c op68kmove.c op68kshift.c
 
-EMU_CSRC = init.c st.c mem.c ikbd.c blitter.c fdc.c
+EMU_CSRC = init.c st.c mem.c ikbd.c blitter.c fdc.c sound.c
 
 GUI_CSRC = main.c  # or x11.c for not just mono blitting
 
@@ -46,7 +46,7 @@ GUI_COBJ = $(GUI_CSRC:%.c=obj/%.o)
 
 COBJ = $(EMU_COBJ) $(CPU_COBJ) $(GUI_COBJ)
 
-OBJECTS = $(COBJ) 
+OBJECTS = $(COBJ) obj/emu2149.o
 
 #
 # production targets 
@@ -63,6 +63,12 @@ obj/%.o : st/%.c config.h
 
 obj/%.o : sdl/%.c config.h
 	$(CC) $(CFLAGS) -c $< -o $@
+
+obj/emu2149.o: emu2149.c emu2149.h
+	$(CC) $(CFLAGS) -c emu2149.c -o obj/emu2149.o
+
+obj/emu2149.o: emu2149.c emu2149.h
+	$(CC) $(CFLAGS) -c emu2149.c -o obj/emu2149.o
 
 
 all:	clean castaway

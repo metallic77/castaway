@@ -254,9 +254,11 @@ int             DoIOWB(uint32 address, uint8 value)
         break;
     case SND_RS:
         snd_rs = value & 0xf;
+        sound_write_select(snd_rs);
         break;
     case SND_WD:
         snd_regs[snd_rs] = value;
+        sound_write_data(value);
         break;
     case MFP_GPIP:
         break;

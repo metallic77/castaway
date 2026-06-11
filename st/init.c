@@ -84,6 +84,7 @@ int            Init(int argc, char **argv)
     MemInit();
     FDCInit();
     IOInit();
+    sound_init();
     HWReset(); /* CPU Reset */
     return 0;
 }
