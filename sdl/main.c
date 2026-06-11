@@ -19,6 +19,153 @@ static char     sccsid[] = "$Id: main.c,v 1.16 2002/09/22 22:08:37 jhoenig Exp $
 #include <stdlib.h>
 #include <string.h>
 #include "SDL.h"
+
+/*
+ * SDL2 compatibility layer for Castaway (SDL1 -> SDL2)
+ *
+ * Strategy: keep the 8bpp indexed surface and all existing render logic
+ * completely unchanged. At flip time, expand palette indices to ARGB32
+ * in a fast C loop, then upload to a streaming ARGB texture.
+ *
+ * This avoids rewriting any of the inner render loops.
+ */
+
+#if SDL_MAJOR_VERSION >= 2
+
+/* ---- type renames ---- */
+typedef SDL_Keysym  SDL_keysym;
+typedef SDL_Keycode SDLKey;
+#define SDLK_KP0 SDLK_KP_0
+#define SDLK_KP1 SDLK_KP_1
+#define SDLK_KP2 SDLK_KP_2
+#define SDLK_KP3 SDLK_KP_3
+#define SDLK_KP4 SDLK_KP_4
+#define SDLK_KP5 SDLK_KP_5
+#define SDLK_KP6 SDLK_KP_6
+#define SDLK_KP7 SDLK_KP_7
+#define SDLK_KP8 SDLK_KP_8
+#define SDLK_KP9 SDLK_KP_9
+
+/* ---- SDL2 global state ---- */
+static SDL_Window   *sdl2_win    = NULL;
+static SDL_Renderer *sdl2_rend   = NULL;
+static SDL_Texture  *sdl2_tex    = NULL;  /* ARGB8888, 640x400 */
+
+/* ARGB palette: updated by SDL_SetPalette, used at flip time */
+static Uint32 sdl2_argb_pal[256];  /* 256 entries, but only 0-15 used */
+
+/* Expand-and-flip: read 8bpp indexed surface, write ARGB to texture */
+static void sdl2_present(SDL_Surface *src)
+{
+    static Uint32 argb_buf[640 * 400];
+    int x, y;
+    Uint8  *sp;
+    Uint32 *dp;
+    int w = src->w, h = src->h;
+
+    SDL_LockSurface(src);
+    for (y = 0; y < h; y++) {
+        sp = (Uint8 *)src->pixels + y * src->pitch;
+        dp = argb_buf + y * w;
+        for (x = 0; x < w; x++)
+            dp[x] = sdl2_argb_pal[sp[x]];
+    }
+    SDL_UnlockSurface(src);
+
+    SDL_UpdateTexture(sdl2_tex, NULL, argb_buf, w * sizeof(Uint32));
+    SDL_RenderClear(sdl2_rend);
+    SDL_RenderCopy(sdl2_rend, sdl2_tex, NULL, NULL);
+    SDL_RenderPresent(sdl2_rend);
+}
+
+/* ---- SDL_SetVideoMode ---- */
+static SDL_Surface *SDL1_SetVideoMode(int w, int h, int bpp, Uint32 flags)
+{
+    (void)bpp; (void)flags;
+    sdl2_win = SDL_CreateWindow("Castaway",
+                                SDL_WINDOWPOS_UNDEFINED,
+                                SDL_WINDOWPOS_UNDEFINED,
+                                w * 2, h * 2,
+                                SDL_WINDOW_RESIZABLE);
+    if (!sdl2_win) return NULL;
+    sdl2_rend = SDL_CreateRenderer(sdl2_win, -1,
+                                   SDL_RENDERER_ACCELERATED |
+                                   SDL_RENDERER_PRESENTVSYNC);
+    if (!sdl2_rend) return NULL;
+    SDL_RenderSetLogicalSize(sdl2_rend, w, h);
+    sdl2_tex = SDL_CreateTexture(sdl2_rend,
+                                 SDL_PIXELFORMAT_ARGB8888,
+                                 SDL_TEXTUREACCESS_STREAMING,
+                                 w, h);
+    if (!sdl2_tex) return NULL;
+
+    /* Default palette: all black, index 0 = white, index 1 = black (mono) */
+    {
+        int pi;
+        for (pi = 0; pi < 256; pi++) sdl2_argb_pal[pi] = 0xFF000000u;
+        sdl2_argb_pal[0] = 0xFFFFFFFFu;  /* white */
+    }
+
+    /* 8bpp surface — same as SDL1 code expects */
+    SDL_Surface *s = SDL_CreateRGBSurface(0, w, h, 8, 0, 0, 0, 0);
+    return s;
+}
+#define SDL_SetVideoMode SDL1_SetVideoMode
+
+/* ---- SDL_SetPalette: store ARGB palette for use at flip time ---- */
+#define SDL_LOGPAL 1
+#define SDL_PHYSPAL 2
+static inline void SDL1_SetPalette(SDL_Surface *s, int flags,
+                                   SDL_Color *colors, int first, int ncolors)
+{
+    int i;
+    (void)s; (void)flags;
+    for (i = 0; i < ncolors; i++) {
+        SDL_Color *c = &colors[first + i];
+        sdl2_argb_pal[first + i] = 0xFF000000u
+            | ((Uint32)c->r << 16)
+            | ((Uint32)c->g <<  8)
+            | ((Uint32)c->b      );
+    }
+}
+#define SDL_SetPalette(s,f,c,first,n) SDL1_SetPalette(s,f,c,first,n)
+
+/* ---- SDL_Flip: expand 8bpp -> ARGB and present ---- */
+static inline int SDL1_Flip(SDL_Surface *s)
+{
+    sdl2_present(s);
+    return 0;
+}
+#define SDL_Flip(s) SDL1_Flip(s)
+
+/* SDL_UpdateRect -> no-op; full present happens in SDL_Flip */
+#define SDL_UpdateRect(s,x,y,w,h) ((void)0)
+
+/* ---- SDL_WM_SetCaption ---- */
+static inline void SDL1_WM_SetCaption(const char *title, const char *icon)
+{
+    (void)icon;
+    if (sdl2_win) SDL_SetWindowTitle(sdl2_win, title);
+}
+#define SDL_WM_SetCaption SDL1_WM_SetCaption
+
+/* ---- SDL_WM_GrabInput ---- */
+typedef int SDL_GrabMode;
+#define SDL_GRAB_QUERY  (-1)
+#define SDL_GRAB_ON      1
+#define SDL_GRAB_OFF     0
+static inline SDL_GrabMode SDL_WM_GrabInput(SDL_GrabMode mode)
+{
+    if (!sdl2_win) return SDL_GRAB_OFF;
+    if (mode == SDL_GRAB_QUERY)
+        return SDL_GetWindowGrab(sdl2_win) ? SDL_GRAB_ON : SDL_GRAB_OFF;
+    SDL_SetWindowGrab(sdl2_win, mode == SDL_GRAB_ON ? SDL_TRUE : SDL_FALSE);
+    SDL_SetRelativeMouseMode(mode == SDL_GRAB_ON ? SDL_TRUE : SDL_FALSE);
+    return mode;
+}
+
+#endif /* SDL_MAJOR_VERSION >= 2 */
+
 #include "SDL_thread.h"
 #include "SDL_main.h"
 
@@ -44,8 +191,8 @@ unsigned    ips = 0;
 /*
  * 1 bit to 8 bit per pixel conversion arrays
  */
-unsigned long vm2bm1[256];
-unsigned long vm2bm2[256];
+uint32 vm2bm1[256];
+uint32 vm2bm2[256];
 /*
  * pixel duplicator array
  */
@@ -60,14 +207,14 @@ unsigned short pixdup[256];
 struct {
     int top, height;
     int modified;
-    unsigned long mem_begin;
-    unsigned long mem_end;
-    unsigned long vid_begin;
-    unsigned long vid_end;
+    uint32 mem_begin;
+    uint32 mem_end;
+    uint32 vid_begin;
+    uint32 vid_end;
 }           update_rect[VIDRECTCOUNT];
 unsigned    update_rect_count;
 
-void    VideoRamSet(unsigned long address)
+void VideoRamSet(uint32 address)
 {
     unsigned index;
     for (index = 0; index < update_rect_count; index++) {
@@ -81,19 +228,19 @@ void    VideoRamSet(unsigned long address)
         RamSetB, RamSetW, RamSetL, RamGetB, RamGetW, RamGetL);
 }
 
-void    VideoRamSetB(unsigned long address, unsigned char value)
+void VideoRamSetB(uint32 address, uint8 value)
 {
     RamSetB(address, value);
     VideoRamSet(address);
 }
 
-void    VideoRamSetW (unsigned long address, unsigned short value)
+void VideoRamSetW(uint32 address, uint16 value)
 {
     RamSetW(address, value);
     VideoRamSet(address);
 }
 
-void    VideoRamSetL (unsigned long address, unsigned long value)
+void VideoRamSetL(uint32 address, uint32 value)
 {
     RamSetL(address, value);
     VideoRamSet(address);
@@ -104,8 +251,8 @@ void    Redraw(void)
     /*
      * get base address
      */
-    unsigned long VideoOffset;
-    static unsigned long OldOffset;
+    uint32 VideoOffset;
+    static uint32 OldOffset;
     unsigned char *VideoMemory, *ScreenMemory;
     unsigned i;
     VideoOffset = vid_baseh;
@@ -137,7 +284,7 @@ void    Redraw(void)
     }
     if (OldOffset != VideoOffset) {
         /* setup update rectangles */
-        unsigned long address;
+        uint32 address;
         unsigned num_rects;
         OldOffset = VideoOffset;
 
@@ -181,13 +328,13 @@ void    Redraw(void)
     SDL_LockSurface(screen);
     for (i = 0; i < update_rect_count; i++) {
         register unsigned char *line_i;
-        register unsigned long *line_o, *line_o1, *line_o2;
+        register uint32 *line_o, *line_o1, *line_o2;
         int row, col;
         if (update_rect[i].modified == 0) continue;
         switch (vid_shiftmode) {
         case MONO:
             line_i = update_rect[i].vid_begin + membase;
-            line_o = (unsigned long *) (ScreenMemory + 8 * (update_rect[i].vid_begin - VideoOffset));
+            line_o = (uint32 *)(ScreenMemory + 8 * (update_rect[i].vid_begin - VideoOffset));
             while (line_i < (unsigned char *)(update_rect[i].vid_end + membase)) {
                 *line_o++ = vm2bm1[*line_i];
                 *line_o++ = vm2bm2[*line_i++];
@@ -196,10 +343,10 @@ void    Redraw(void)
         case COL2:
             line_i = VideoMemory + update_rect[i].top * 80;
             for (row = update_rect[i].top; row < update_rect[i].top + update_rect[i].height; row += 2) {
-                line_o1 = (unsigned long *) (ScreenMemory + screen->pitch * row);
-                line_o2 = (unsigned long *) (ScreenMemory + screen->pitch * (row + 1));
+                line_o1 = (uint32 *)(ScreenMemory + screen->pitch * row);
+                line_o2 = (uint32 *)(ScreenMemory + screen->pitch * (row + 1));
                 for (col = 0; col < 80; col += 2) {
-                    register unsigned long val;
+                    register uint32 val;
                     val = (vm2bm1[*line_i])
                         + (vm2bm1[*(line_i + 2)] << 1);
                     *line_o1++ = val;
@@ -223,10 +370,10 @@ void    Redraw(void)
         case COL4:
             line_i = VideoMemory + update_rect[i].top * 80;
             for (row = update_rect[i].top; row < update_rect[i].top + update_rect[i].height; row += 2) {
-                line_o1 = (unsigned long *) (ScreenMemory + screen->pitch * row);
-                line_o2 = (unsigned long *) (ScreenMemory + screen->pitch * (row + 1));
+                line_o1 = (uint32 *)(ScreenMemory + screen->pitch * row);
+                line_o2 = (uint32 *)(ScreenMemory + screen->pitch * (row + 1));
                 for (col = 0; col < 80; col += 4) {
-                    register unsigned long val;
+                    register uint32 val;
                     unsigned short val0 = pixdup[*line_i++];
                     unsigned short val1 = pixdup[*line_i++];
                     unsigned short val2 = pixdup[*line_i++];
@@ -290,11 +437,19 @@ void    Redraw(void)
     }
     SDL_UnlockSurface(screen);
     /* update modified rectangles */
-    for (i = 0; i < update_rect_count; i++) {
-        if (update_rect[i].modified != 0) {
-            update_rect[i].modified = 0;
-            SDL_UpdateRect(screen, 0, update_rect[i].top, 640, update_rect[i].height);
+    {
+        int any_modified = 0;
+        for (i = 0; i < update_rect_count; i++) {
+            if (update_rect[i].modified != 0) {
+                update_rect[i].modified = 0;
+                SDL_UpdateRect(screen, 0, update_rect[i].top, 640, update_rect[i].height);
+                any_modified = 1;
+            }
         }
+#if SDL_MAJOR_VERSION >= 2
+        if (any_modified)
+            sdl2_present(screen);
+#endif
     }
 }
 

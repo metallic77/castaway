@@ -1,0 +1,725 @@
+diff -ruN '--exclude=obj' '--exclude=castaway' castaway/Makefile castaway-fixed/Makefile
+--- castaway/Makefile	2026-06-11 12:26:34.723580535 +0000
++++ castaway-fixed/Makefile	2026-06-11 12:28:39.854989868 +0000
+@@ -6,8 +6,8 @@
+ CC = gcc
+ 
+ # SDL-Library configuration:
+-SDLLIBS  = $(shell sdl-config --libs)
+-SDLFLAGS = $(shell sdl-config --cflags)
++SDLLIBS  = $(shell sdl2-config --libs 2>/dev/null || sdl-config --libs)
++SDLFLAGS = $(shell sdl2-config --cflags 2>/dev/null || sdl-config --cflags)
+ #SDLLIBS  = -L. -lSDLmain -lsdl
+ 
+ #INCS = -I. -Icpu -Ist -I/usr/X11R6/include/X11
+@@ -17,7 +17,7 @@
+ LIBS =  $(SDLLIBS) #-lc -L/usr/X11R6/lib -lX11
+ DEFS = -Di386 # or -Dsun4
+ 
+-CFLAGS = -s $(OPTS) $(DEFS) $(WRNS) $(INCS) $(SDLFLAGS)
++CFLAGS = $(OPTS) $(DEFS) $(WRNS) $(INCS) $(SDLFLAGS)
+ 
+ #
+ # source code 
+diff -ruN '--exclude=obj' '--exclude=castaway' castaway/config.h castaway-fixed/config.h
+--- castaway/config.h	2026-06-11 12:26:34.723580535 +0000
++++ castaway-fixed/config.h	2026-06-11 12:27:36.518780706 +0000
+@@ -1,100 +1,118 @@
+-/*
+- * Castaway
+- *  (C) 1994 - 2002 Joachim Hoenig, Martin Doering
+- *
+- * This file is distributed under the GPL, version 2 or at your
+- * option any later version.  See doc/license.txt for details.
+- */
+-#ifndef CONFIGH
+-#define CONFIGH
+-/*
+- * Environment Configuration
+- */
+-#if defined (__WIN32__) || defined(i386)
+-#define LITTLE_ENDIAN
+-#else
+-#define BIG_ENDIAN
+-#endif
+-
+-#ifdef __GNUC__
+-#define INLINE static inline
+-#endif
+-#ifdef __BORLANDC__
+-#define INLINE __inline
+-#endif
+-
+-/*
+- * compiler representation of M68000 .B .W .L operands
+- */
+-typedef signed char     int8;
+-typedef signed short    int16;
+-typedef signed long     int32;
+-typedef unsigned char   uint8;
+-typedef unsigned short  uint16;
+-typedef unsigned long   uint32;
+-
+-/*
+- * Atari ST emulator defaults
+- */
+-#define MEMBASE 0x00000000L
+-#define MEMSIZE 0x00400000L /* default memsize 4 Mb */
+-#define CARBASE 0x00fa0000L
+-#define CARSIZE 0x00020000L /* 128k cartridge */
+-#define ROMBASE 0x00fc0000L
+-#define ROMSIZE 0x00030000L /* 192k */
+-#define IOBASE  0x00ff8000L
+-#define IOSIZE  0x00008000L /* 32k */
+-#define SVADDR  0x00000800L
+-
+-#define MONITOR 2           /* 0=color 320x200 or 2=monochrome 640x400 */
+-#define DISKA   "diska"     /* Disk A pathname */
+-#define DISKB   "diskb"     /* Disk B pathname */
+-#define CARTRIDGE "cartridge"   /* cartridge image pathname */
+-#define ROM "rom"           /* ROM image pathname */
+-#define SIDES   2           /* disk sides */
+-#define TRACKS  80          /* tracks on disk */
+-#define SECTORS 9           /* sectors per track */
+-#define SECSIZE 512         /* byte per sector */
+-#define TIMER   0           /* 0=normal (200Hz), 2=slow (100Hz) */
+-#undef  NO_BLITTER          /* Do not emulate Blitter */
+-#define NO_RTC              /* Do not emulate Real-Time-Clock */
+-#define CHKADDRESSERR       /* if set, unaligned access will raise
+-                             * an address error (slower, but
+-                             * expected behaviour) */
+-
+-#undef DEBUG                /* Debug */
+-
+-/*
+- * Debug options
+- */
+-#ifdef DEBUG
+-#ifndef CHKADDRESSERR
+-#define CHKADDRESSERR       /* force address error checking */
+-#endif
+-#define VERBOSE 0x1         /* ~INT | IO */
+-#define TRACEBACK 20000     /* 68k traceback buffer size */
+-#define INTERNALTRACE       /* trace 68k operation internal execution */
+-#define DBG_OUT if (verb_on) printf
+-#define DBG_STOP if (stop_on) Stop
+-#define NO_TIMER
+-/* special DEBUG action on traps */
+-#define ON_TRAP(number)
+-/* special DEBUG action on R/W access to an unmapped address */
+-#define ON_UNMAPPED(address, value)
+-/* special DEBUG action on unmapped I/O access */
+-#define ON_NOIO(offset, value)
+-/* special DEBUG action on write access */
+-#define ON_WRITE(address, value)
+-extern int      trace_on;
+-extern int      stop_on;
+-extern int      verb_on;
+-extern void     SaveState(unsigned short inst);
+-extern void     Stop(void);
+-#else /* not DEBUG */
+-#define ON_TRAP(number)
+-#define ON_UNMAPPED(address, value)
+-#define ON_NOIO(address, value)
+-#define ON_WRITE(address, value)
+-#endif
+-#endif
+-
++/*
++ * Castaway
++ *  (C) 1994 - 2002 Joachim Hoenig, Martin Doering
++ *
++ * This file is distributed under the GPL, version 2 or at your
++ * option any later version.  See doc/license.txt for details.
++ *
++ * 64-bit Linux fix: use stdint.h types and fix endian detection.
++ */
++#ifndef CONFIGH
++#define CONFIGH
++
++#include <stdint.h>
++
++/*
++ * Environment Configuration
++ * Detect little-endian: x86, x86-64, Win32
++ */
++#if defined(__WIN32__) || defined(i386) || defined(__i386__) || defined(__x86_64__) || defined(__amd64__)
++#define LITTLE_ENDIAN_HOST
++#else
++#define BIG_ENDIAN_HOST
++#endif
++
++/* Keep legacy LITTLE_ENDIAN/BIG_ENDIAN macros pointing to the new names */
++#ifdef LITTLE_ENDIAN_HOST
++# ifndef LITTLE_ENDIAN
++#  define LITTLE_ENDIAN
++# endif
++#else
++# ifndef BIG_ENDIAN
++#  define BIG_ENDIAN
++# endif
++#endif
++
++#ifdef __GNUC__
++#define INLINE static inline
++#endif
++#ifdef __BORLANDC__
++#define INLINE __inline
++#endif
++
++/*
++ * compiler representation of M68000 .B .W .L operands
++ * IMPORTANT: int32/uint32 must be exactly 32 bits.
++ * Do NOT use 'long' here — on LP64 (64-bit Linux) long is 64 bits.
++ */
++typedef int8_t          int8;
++typedef int16_t         int16;
++typedef int32_t         int32;
++typedef uint8_t         uint8;
++typedef uint16_t        uint16;
++typedef uint32_t        uint32;
++
++/*
++ * Atari ST emulator defaults
++ */
++#define MEMBASE 0x00000000L
++#define MEMSIZE 0x00400000L /* default memsize 4 Mb */
++#define CARBASE 0x00fa0000L
++#define CARSIZE 0x00020000L /* 128k cartridge */
++#define ROMBASE 0x00fc0000L
++#define ROMSIZE 0x00030000L /* 192k */
++#define IOBASE  0x00ff8000L
++#define IOSIZE  0x00008000L /* 32k */
++#define SVADDR  0x00000800L
++
++#define MONITOR 2           /* 0=color 320x200 or 2=monochrome 640x400 */
++#define DISKA   "diska"     /* Disk A pathname */
++#define DISKB   "diskb"     /* Disk B pathname */
++#define CARTRIDGE "cartridge"   /* cartridge image pathname */
++#define ROM "rom"           /* ROM image pathname */
++#define SIDES   2           /* disk sides */
++#define TRACKS  80          /* tracks on disk */
++#define SECTORS 9           /* sectors per track */
++#define SECSIZE 512         /* byte per sector */
++#define TIMER   0           /* 0=normal (200Hz), 2=slow (100Hz) */
++#undef  NO_BLITTER          /* Do not emulate Blitter */
++#define NO_RTC              /* Do not emulate Real-Time-Clock */
++#define CHKADDRESSERR       /* if set, unaligned access will raise
++                             * an address error (slower, but
++                             * expected behaviour) */
++
++#undef DEBUG                /* Debug */
++
++/*
++ * Debug options
++ */
++#ifdef DEBUG
++#ifndef CHKADDRESSERR
++#define CHKADDRESSERR       /* force address error checking */
++#endif
++#define VERBOSE 0x1         /* ~INT | IO */
++#define TRACEBACK 20000     /* 68k traceback buffer size */
++#define INTERNALTRACE       /* trace 68k operation internal execution */
++#define DBG_OUT if (verb_on) printf
++#define DBG_STOP if (stop_on) Stop
++#define NO_TIMER
++/* special DEBUG action on traps */
++#define ON_TRAP(number)
++/* special DEBUG action on R/W access to an unmapped address */
++#define ON_UNMAPPED(address, value)
++/* special DEBUG action on unmapped I/O access */
++#define ON_NOIO(offset, value)
++/* special DEBUG action on write access */
++#define ON_WRITE(address, value)
++extern int      trace_on;
++extern int      stop_on;
++extern int      verb_on;
++extern void     SaveState(unsigned short inst);
++extern void     Stop(void);
++#else /* not DEBUG */
++#define ON_TRAP(number)
++#define ON_UNMAPPED(address, value)
++#define ON_NOIO(address, value)
++#define ON_WRITE(address, value)
++#endif
++#endif
+diff -ruN '--exclude=obj' '--exclude=castaway' castaway/cpu/68000.c castaway-fixed/cpu/68000.c
+--- castaway/cpu/68000.c	2026-06-11 12:26:34.723580535 +0000
++++ castaway-fixed/cpu/68000.c	2026-06-11 12:28:05.645055336 +0000
+@@ -44,12 +44,12 @@
+ #include "op68010.c"
+ #endif
+ 
+-unsigned long   reg[16], *areg;         // areg later points to reg[8]
+-unsigned long   usp, ssp;
+-unsigned long   dfc, sfc, vbr;
++uint32 reg[16], *areg;         // areg later points to reg[8]
++uint32 usp, ssp;
++uint32 dfc, sfc, vbr;
+ //long            reg[16];
+ //long            usp, ssp;
+-unsigned long   pc;
++uint32 pc;
+ unsigned short  inst;
+ #define GetInst() GetMemW (pc)
+ 
+@@ -156,7 +156,7 @@
+ 
+ void            ExceptionGroup0(
+         int number,
+-        unsigned long address,
++        uint32 address,
+         int ReadWrite)
+ {
+     short sr = GetSRW(), context = 0;
+diff -ruN '--exclude=obj' '--exclude=castaway' castaway/cpu/68000.h castaway-fixed/cpu/68000.h
+--- castaway/cpu/68000.h	2026-06-11 12:26:34.726013714 +0000
++++ castaway-fixed/cpu/68000.h	2026-06-11 12:27:55.531643685 +0000
+@@ -71,7 +71,7 @@
+ /* Group 0 exceptions (address error / bus error) */
+ extern void     ExceptionGroup0(
+         int number,             /* trap number */
+-        unsigned long address,  /* fault address */
++        uint32 address,  /* fault address */
+         int ReadWrite);         /* read = true, write = false */
+ /* Group 1 exceptions: illegal instruction, privilege violation, interrupts */
+ extern void     ExceptionGroup1(int number);
+@@ -109,13 +109,13 @@
+  */
+ /* Data and address registers are stored in native byte order.
+  * register numbering: 0=d0, 1=d1, ..., 8=a0, 9=a1, ... 15=a7 */
+-extern unsigned long    reg[16], *areg, usp, ssp;
+-extern unsigned long    pc;
++extern uint32 reg[16], *areg, usp, ssp;
++extern uint32 pc;
+ extern unsigned short   inst;
+ /* 68010 registers */
+-extern unsigned long    dfc, sfc, vbr;
++extern uint32 dfc, sfc, vbr;
+ /* 68020 registers */
+-extern unsigned long    caar, cacr, isp, msp;
++extern uint32 caar, cacr, isp, msp;
+ 
+ /*
+  * Choose status register implementation
+@@ -177,21 +177,21 @@
+ #define MEMBANKSIZE (MEMADDRSIZE / MEMTABLESIZE)
+ #define MEMBANKMASK (MEMBANKSIZE - 1)
+ #if 1
+-extern void     (*mem_set_b[MEMTABLESIZE]) (unsigned long address, unsigned char value);
+-extern void     (*mem_set_w[MEMTABLESIZE]) (unsigned long address, unsigned short value);
+-extern void     (*mem_set_l[MEMTABLESIZE]) (unsigned long address, unsigned long value);
+-extern unsigned char     (*mem_get_b[MEMTABLESIZE]) (unsigned long address);
+-extern unsigned short    (*mem_get_w[MEMTABLESIZE]) (unsigned long address);
+-extern unsigned long     (*mem_get_l[MEMTABLESIZE]) (unsigned long address);
++extern void     (*mem_set_b[MEMTABLESIZE]) (uint32 address, uint8 value);
++extern void     (*mem_set_w[MEMTABLESIZE]) (uint32 address, uint16 value);
++extern void     (*mem_set_l[MEMTABLESIZE]) (uint32 address, uint32 value);
++extern unsigned char     (*mem_get_b[MEMTABLESIZE]) (uint32 address);
++extern unsigned short    (*mem_get_w[MEMTABLESIZE]) (uint32 address);
++extern uint32     (*mem_get_l[MEMTABLESIZE]) (uint32 address);
+ #endif
+ /* Fetch byte from address */
+-INLINE char GetMemB(unsigned long address)
++INLINE char GetMemB(uint32 address)
+ {
+     address &= MEMADDRMASK;
+     return (*mem_get_b[address >> MEMIDXSHIFT]) (address);
+ }
+ /* Fetch word, address may not be word-aligned */
+-INLINE short GetMemW(unsigned long address)
++INLINE short GetMemW(uint32 address)
+ {
+ #ifdef CHKADDRESSERR
+     if (address & 0x1) ExceptionGroup0(ADDRESSERR, address, 1);
+@@ -200,7 +200,7 @@
+     return (*mem_get_w[address >> MEMIDXSHIFT]) (address);
+ }
+ /* Fetch dword, address may not be dword-aligned */
+-INLINE long GetMemL(unsigned long address)
++INLINE long GetMemL(uint32 address)
+ {
+ #ifdef CHKADDRESSERR
+     if (address & 0x1) ExceptionGroup0(ADDRESSERR, address, 1);
+@@ -209,12 +209,12 @@
+     return (*mem_get_l[address >> MEMIDXSHIFT]) (address);
+ }
+ /* Write byte to address */
+-INLINE void SetMemB (unsigned long address, unsigned char value) {
++INLINE void SetMemB(uint32 address, unsigned char value) {
+     address &= MEMADDRMASK;
+     (*mem_set_b[address >> MEMIDXSHIFT]) (address, value);
+ }
+ /* Write word, address may not be word-aligned */
+-INLINE void SetMemW(unsigned long address, unsigned short value)
++INLINE void SetMemW(uint32 address, unsigned short value)
+ {
+ #ifdef CHKADDRESSERR
+     if (address & 0x1) ExceptionGroup0(ADDRESSERR, address, 0);
+@@ -223,7 +223,7 @@
+     (*mem_set_w[address >> MEMIDXSHIFT]) (address, value);
+ }
+ /* Write dword, address may not be dword-aligned */
+-INLINE void SetMemL(unsigned long address, unsigned long value)
++INLINE void SetMemL(uint32 address, uint32 value)
+ {
+ #ifdef CHKADDRESSERR
+     if (address & 0x1) ExceptionGroup0(ADDRESSERR, address, 0);
+@@ -252,7 +252,7 @@
+ #endif
+ };
+ extern int             hide_supervisor;
+-extern unsigned long   instcnt;
++extern uint32 instcnt;
+ extern int             tbi;
+ extern struct state    traceback[TRACEBACK];
+ extern int             trace_on;
+diff -ruN '--exclude=obj' '--exclude=castaway' castaway/cpu/debug.c castaway-fixed/cpu/debug.c
+--- castaway/cpu/debug.c	2026-06-11 12:26:34.726013714 +0000
++++ castaway-fixed/cpu/debug.c	2026-06-11 12:28:10.687385224 +0000
+@@ -1113,7 +1113,7 @@
+ int             stop_on = 0;
+ int             verb_on = 0;
+ int             hide_supervisor = 0;
+-unsigned long   instcnt = 0;
++uint32 instcnt = 0;
+ int             tbi = 0;
+ int             trace_on = 0;
+ struct state    traceback[TRACEBACK];
+diff -ruN '--exclude=obj' '--exclude=castaway' castaway/cpu/op68kmisc.c castaway-fixed/cpu/op68kmisc.c
+--- castaway/cpu/op68kmisc.c	2026-06-11 12:26:34.726782119 +0000
++++ castaway-fixed/cpu/op68kmisc.c	2026-06-11 12:28:13.474369417 +0000
+@@ -36,7 +36,7 @@
+ void            Code(void)\
+ {\
+     Decl(source)\
+-    unsigned long address;\
++    uint32 address;\
+     unsigned short ext = GetMPCW();\
+     unsigned short index = ext >> 12;\
+     if (!GetS()) { ExceptionGroup1(PRIV); };\
+diff -ruN '--exclude=obj' '--exclude=castaway' castaway/sdl/main.c castaway-fixed/sdl/main.c
+--- castaway/sdl/main.c	2026-06-11 12:26:34.738782119 +0000
++++ castaway-fixed/sdl/main.c	2026-06-11 12:42:16.024056932 +0000
+@@ -18,7 +18,154 @@
+ static char     sccsid[] = "$Id: main.c,v 1.16 2002/09/22 22:08:37 jhoenig Exp $";
+ #include <stdlib.h>
+ #include <string.h>
+-#include "SDL.h"
++#include "SDL.h"
++
++/*
++ * SDL2 compatibility layer for Castaway (SDL1 -> SDL2)
++ *
++ * Strategy: keep the 8bpp indexed surface and all existing render logic
++ * completely unchanged. At flip time, expand palette indices to ARGB32
++ * in a fast C loop, then upload to a streaming ARGB texture.
++ *
++ * This avoids rewriting any of the inner render loops.
++ */
++
++#if SDL_MAJOR_VERSION >= 2
++
++/* ---- type renames ---- */
++typedef SDL_Keysym  SDL_keysym;
++typedef SDL_Keycode SDLKey;
++#define SDLK_KP0 SDLK_KP_0
++#define SDLK_KP1 SDLK_KP_1
++#define SDLK_KP2 SDLK_KP_2
++#define SDLK_KP3 SDLK_KP_3
++#define SDLK_KP4 SDLK_KP_4
++#define SDLK_KP5 SDLK_KP_5
++#define SDLK_KP6 SDLK_KP_6
++#define SDLK_KP7 SDLK_KP_7
++#define SDLK_KP8 SDLK_KP_8
++#define SDLK_KP9 SDLK_KP_9
++
++/* ---- SDL2 global state ---- */
++static SDL_Window   *sdl2_win    = NULL;
++static SDL_Renderer *sdl2_rend   = NULL;
++static SDL_Texture  *sdl2_tex    = NULL;  /* ARGB8888, 640x400 */
++
++/* ARGB palette: updated by SDL_SetPalette, used at flip time */
++static Uint32 sdl2_argb_pal[256];  /* 256 entries, but only 0-15 used */
++
++/* Expand-and-flip: read 8bpp indexed surface, write ARGB to texture */
++static void sdl2_present(SDL_Surface *src)
++{
++    static Uint32 argb_buf[640 * 400];
++    int x, y;
++    Uint8  *sp;
++    Uint32 *dp;
++    int w = src->w, h = src->h;
++
++    SDL_LockSurface(src);
++    for (y = 0; y < h; y++) {
++        sp = (Uint8 *)src->pixels + y * src->pitch;
++        dp = argb_buf + y * w;
++        for (x = 0; x < w; x++)
++            dp[x] = sdl2_argb_pal[sp[x]];
++    }
++    SDL_UnlockSurface(src);
++
++    SDL_UpdateTexture(sdl2_tex, NULL, argb_buf, w * sizeof(Uint32));
++    SDL_RenderClear(sdl2_rend);
++    SDL_RenderCopy(sdl2_rend, sdl2_tex, NULL, NULL);
++    SDL_RenderPresent(sdl2_rend);
++}
++
++/* ---- SDL_SetVideoMode ---- */
++static SDL_Surface *SDL1_SetVideoMode(int w, int h, int bpp, Uint32 flags)
++{
++    (void)bpp; (void)flags;
++    sdl2_win = SDL_CreateWindow("Castaway",
++                                SDL_WINDOWPOS_UNDEFINED,
++                                SDL_WINDOWPOS_UNDEFINED,
++                                w * 2, h * 2,
++                                SDL_WINDOW_RESIZABLE);
++    if (!sdl2_win) return NULL;
++    sdl2_rend = SDL_CreateRenderer(sdl2_win, -1,
++                                   SDL_RENDERER_ACCELERATED |
++                                   SDL_RENDERER_PRESENTVSYNC);
++    if (!sdl2_rend) return NULL;
++    SDL_RenderSetLogicalSize(sdl2_rend, w, h);
++    sdl2_tex = SDL_CreateTexture(sdl2_rend,
++                                 SDL_PIXELFORMAT_ARGB8888,
++                                 SDL_TEXTUREACCESS_STREAMING,
++                                 w, h);
++    if (!sdl2_tex) return NULL;
++
++    /* Default palette: all black, index 0 = white, index 1 = black (mono) */
++    {
++        int pi;
++        for (pi = 0; pi < 256; pi++) sdl2_argb_pal[pi] = 0xFF000000u;
++        sdl2_argb_pal[0] = 0xFFFFFFFFu;  /* white */
++    }
++
++    /* 8bpp surface — same as SDL1 code expects */
++    SDL_Surface *s = SDL_CreateRGBSurface(0, w, h, 8, 0, 0, 0, 0);
++    return s;
++}
++#define SDL_SetVideoMode SDL1_SetVideoMode
++
++/* ---- SDL_SetPalette: store ARGB palette for use at flip time ---- */
++#define SDL_LOGPAL 1
++#define SDL_PHYSPAL 2
++static inline void SDL1_SetPalette(SDL_Surface *s, int flags,
++                                   SDL_Color *colors, int first, int ncolors)
++{
++    int i;
++    (void)s; (void)flags;
++    for (i = 0; i < ncolors; i++) {
++        SDL_Color *c = &colors[first + i];
++        sdl2_argb_pal[first + i] = 0xFF000000u
++            | ((Uint32)c->r << 16)
++            | ((Uint32)c->g <<  8)
++            | ((Uint32)c->b      );
++    }
++}
++#define SDL_SetPalette(s,f,c,first,n) SDL1_SetPalette(s,f,c,first,n)
++
++/* ---- SDL_Flip: expand 8bpp -> ARGB and present ---- */
++static inline int SDL1_Flip(SDL_Surface *s)
++{
++    sdl2_present(s);
++    return 0;
++}
++#define SDL_Flip(s) SDL1_Flip(s)
++
++/* SDL_UpdateRect -> no-op; full present happens in SDL_Flip */
++#define SDL_UpdateRect(s,x,y,w,h) ((void)0)
++
++/* ---- SDL_WM_SetCaption ---- */
++static inline void SDL1_WM_SetCaption(const char *title, const char *icon)
++{
++    (void)icon;
++    if (sdl2_win) SDL_SetWindowTitle(sdl2_win, title);
++}
++#define SDL_WM_SetCaption SDL1_WM_SetCaption
++
++/* ---- SDL_WM_GrabInput ---- */
++typedef int SDL_GrabMode;
++#define SDL_GRAB_QUERY  (-1)
++#define SDL_GRAB_ON      1
++#define SDL_GRAB_OFF     0
++static inline SDL_GrabMode SDL_WM_GrabInput(SDL_GrabMode mode)
++{
++    if (!sdl2_win) return SDL_GRAB_OFF;
++    if (mode == SDL_GRAB_QUERY)
++        return SDL_GetWindowGrab(sdl2_win) ? SDL_GRAB_ON : SDL_GRAB_OFF;
++    SDL_SetWindowGrab(sdl2_win, mode == SDL_GRAB_ON ? SDL_TRUE : SDL_FALSE);
++    SDL_SetRelativeMouseMode(mode == SDL_GRAB_ON ? SDL_TRUE : SDL_FALSE);
++    return mode;
++}
++
++#endif /* SDL_MAJOR_VERSION >= 2 */
++
+ #include "SDL_thread.h"
+ #include "SDL_main.h"
+ 
+@@ -44,8 +191,8 @@
+ /*
+  * 1 bit to 8 bit per pixel conversion arrays
+  */
+-unsigned long vm2bm1[256];
+-unsigned long vm2bm2[256];
++uint32 vm2bm1[256];
++uint32 vm2bm2[256];
+ /*
+  * pixel duplicator array
+  */
+@@ -60,14 +207,14 @@
+ struct {
+     int top, height;
+     int modified;
+-    unsigned long mem_begin;
+-    unsigned long mem_end;
+-    unsigned long vid_begin;
+-    unsigned long vid_end;
++    uint32 mem_begin;
++    uint32 mem_end;
++    uint32 vid_begin;
++    uint32 vid_end;
+ }           update_rect[VIDRECTCOUNT];
+ unsigned    update_rect_count;
+ 
+-void    VideoRamSet(unsigned long address)
++void VideoRamSet(uint32 address)
+ {
+     unsigned index;
+     for (index = 0; index < update_rect_count; index++) {
+@@ -81,19 +228,19 @@
+         RamSetB, RamSetW, RamSetL, RamGetB, RamGetW, RamGetL);
+ }
+ 
+-void    VideoRamSetB(unsigned long address, unsigned char value)
++void VideoRamSetB(uint32 address, uint8 value)
+ {
+     RamSetB(address, value);
+     VideoRamSet(address);
+ }
+ 
+-void    VideoRamSetW (unsigned long address, unsigned short value)
++void VideoRamSetW(uint32 address, uint16 value)
+ {
+     RamSetW(address, value);
+     VideoRamSet(address);
+ }
+ 
+-void    VideoRamSetL (unsigned long address, unsigned long value)
++void VideoRamSetL(uint32 address, uint32 value)
+ {
+     RamSetL(address, value);
+     VideoRamSet(address);
+@@ -104,8 +251,8 @@
+     /*
+      * get base address
+      */
+-    unsigned long VideoOffset;
+-    static unsigned long OldOffset;
++    uint32 VideoOffset;
++    static uint32 OldOffset;
+     unsigned char *VideoMemory, *ScreenMemory;
+     unsigned i;
+     VideoOffset = vid_baseh;
+@@ -137,7 +284,7 @@
+     }
+     if (OldOffset != VideoOffset) {
+         /* setup update rectangles */
+-        unsigned long address;
++        uint32 address;
+         unsigned num_rects;
+         OldOffset = VideoOffset;
+ 
+@@ -181,13 +328,13 @@
+     SDL_LockSurface(screen);
+     for (i = 0; i < update_rect_count; i++) {
+         register unsigned char *line_i;
+-        register unsigned long *line_o, *line_o1, *line_o2;
++        register uint32 *line_o, *line_o1, *line_o2;
+         int row, col;
+         if (update_rect[i].modified == 0) continue;
+         switch (vid_shiftmode) {
+         case MONO:
+             line_i = update_rect[i].vid_begin + membase;
+-            line_o = (unsigned long *) (ScreenMemory + 8 * (update_rect[i].vid_begin - VideoOffset));
++            line_o = (uint32 *)(ScreenMemory + 8 * (update_rect[i].vid_begin - VideoOffset));
+             while (line_i < (unsigned char *)(update_rect[i].vid_end + membase)) {
+                 *line_o++ = vm2bm1[*line_i];
+                 *line_o++ = vm2bm2[*line_i++];
+@@ -196,10 +343,10 @@
+         case COL2:
+             line_i = VideoMemory + update_rect[i].top * 80;
+             for (row = update_rect[i].top; row < update_rect[i].top + update_rect[i].height; row += 2) {
+-                line_o1 = (unsigned long *) (ScreenMemory + screen->pitch * row);
+-                line_o2 = (unsigned long *) (ScreenMemory + screen->pitch * (row + 1));
++                line_o1 = (uint32 *)(ScreenMemory + screen->pitch * row);
++                line_o2 = (uint32 *)(ScreenMemory + screen->pitch * (row + 1));
+                 for (col = 0; col < 80; col += 2) {
+-                    register unsigned long val;
++                    register uint32 val;
+                     val = (vm2bm1[*line_i])
+                         + (vm2bm1[*(line_i + 2)] << 1);
+                     *line_o1++ = val;
+@@ -223,10 +370,10 @@
+         case COL4:
+             line_i = VideoMemory + update_rect[i].top * 80;
+             for (row = update_rect[i].top; row < update_rect[i].top + update_rect[i].height; row += 2) {
+-                line_o1 = (unsigned long *) (ScreenMemory + screen->pitch * row);
+-                line_o2 = (unsigned long *) (ScreenMemory + screen->pitch * (row + 1));
++                line_o1 = (uint32 *)(ScreenMemory + screen->pitch * row);
++                line_o2 = (uint32 *)(ScreenMemory + screen->pitch * (row + 1));
+                 for (col = 0; col < 80; col += 4) {
+-                    register unsigned long val;
++                    register uint32 val;
+                     unsigned short val0 = pixdup[*line_i++];
+                     unsigned short val1 = pixdup[*line_i++];
+                     unsigned short val2 = pixdup[*line_i++];
+@@ -290,11 +437,19 @@
+     }
+     SDL_UnlockSurface(screen);
+     /* update modified rectangles */
+-    for (i = 0; i < update_rect_count; i++) {
+-        if (update_rect[i].modified != 0) {
+-            update_rect[i].modified = 0;
+-            SDL_UpdateRect(screen, 0, update_rect[i].top, 640, update_rect[i].height);
++    {
++        int any_modified = 0;
++        for (i = 0; i < update_rect_count; i++) {
++            if (update_rect[i].modified != 0) {
++                update_rect[i].modified = 0;
++                SDL_UpdateRect(screen, 0, update_rect[i].top, 640, update_rect[i].height);
++                any_modified = 1;
++            }
+         }
++#if SDL_MAJOR_VERSION >= 2
++        if (any_modified)
++            sdl2_present(screen);
++#endif
+     }
+ }
+ 
+diff -ruN '--exclude=obj' '--exclude=castaway' castaway/st/fdc.c castaway-fixed/st/fdc.c
+--- castaway/st/fdc.c	2026-06-11 12:26:34.742637942 +0000
++++ castaway-fixed/st/fdc.c	2026-06-11 12:28:15.910228293 +0000
+@@ -90,7 +90,7 @@
+     int             sides, drives;
+     long            address;    /* dma target/source address */
+     long            offset;     /* offset in disk file */
+-    unsigned long   count;      /* number of byte to transfer */
++    uint32 count;      /* number of byte to transfer */
+     char           *buffer;
+ 
+     /* DMA target/source address */
+diff -ruN '--exclude=obj' '--exclude=castaway' castaway/st/mem.c castaway-fixed/st/mem.c
+--- castaway/st/mem.c	2026-06-11 12:26:34.742637942 +0000
++++ castaway-fixed/st/mem.c	2026-06-11 12:28:18.271362576 +0000
+@@ -228,7 +228,7 @@
+     return ReadW(address + rombase);
+ }
+ 
+-static uint32   RomGetL (unsigned long address)
++static uint32 RomGetL(uint32 address)
+ {
+     return ReadL(address + rombase);
+ }

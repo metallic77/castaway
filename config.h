@@ -4,16 +4,33 @@
  *
  * This file is distributed under the GPL, version 2 or at your
  * option any later version.  See doc/license.txt for details.
+ *
+ * 64-bit Linux fix: use stdint.h types and fix endian detection.
  */
 #ifndef CONFIGH
 #define CONFIGH
+
+#include <stdint.h>
+
 /*
  * Environment Configuration
+ * Detect little-endian: x86, x86-64, Win32
  */
-#if defined (__WIN32__) || defined(i386)
-#define LITTLE_ENDIAN
+#if defined(__WIN32__) || defined(i386) || defined(__i386__) || defined(__x86_64__) || defined(__amd64__)
+#define LITTLE_ENDIAN_HOST
 #else
-#define BIG_ENDIAN
+#define BIG_ENDIAN_HOST
+#endif
+
+/* Keep legacy LITTLE_ENDIAN/BIG_ENDIAN macros pointing to the new names */
+#ifdef LITTLE_ENDIAN_HOST
+# ifndef LITTLE_ENDIAN
+#  define LITTLE_ENDIAN
+# endif
+#else
+# ifndef BIG_ENDIAN
+#  define BIG_ENDIAN
+# endif
 #endif
 
 #ifdef __GNUC__
@@ -25,13 +42,15 @@
 
 /*
  * compiler representation of M68000 .B .W .L operands
+ * IMPORTANT: int32/uint32 must be exactly 32 bits.
+ * Do NOT use 'long' here — on LP64 (64-bit Linux) long is 64 bits.
  */
-typedef signed char     int8;
-typedef signed short    int16;
-typedef signed long     int32;
-typedef unsigned char   uint8;
-typedef unsigned short  uint16;
-typedef unsigned long   uint32;
+typedef int8_t          int8;
+typedef int16_t         int16;
+typedef int32_t         int32;
+typedef uint8_t         uint8;
+typedef uint16_t        uint16;
+typedef uint32_t        uint32;
 
 /*
  * Atari ST emulator defaults
@@ -97,4 +116,3 @@ extern void     Stop(void);
 #define ON_WRITE(address, value)
 #endif
 #endif
-

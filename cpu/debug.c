@@ -1113,7 +1113,7 @@ void    disass(char *buf, uint16 *inst_stream)
 int             stop_on = 0;
 int             verb_on = 0;
 int             hide_supervisor = 0;
-unsigned long   instcnt = 0;
+uint32 instcnt = 0;
 int             tbi = 0;
 int             trace_on = 0;
 struct state    traceback[TRACEBACK];

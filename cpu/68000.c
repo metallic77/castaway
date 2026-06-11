@@ -44,12 +44,12 @@ static char     sccsid[] = "$Id: 68000.c,v 1.20 2002/10/30 16:23:04 jhoenig Exp 
 #include "op68010.c"
 #endif
 
-unsigned long   reg[16], *areg;         // areg later points to reg[8]
-unsigned long   usp, ssp;
-unsigned long   dfc, sfc, vbr;
+uint32 reg[16], *areg;         // areg later points to reg[8]
+uint32 usp, ssp;
+uint32 dfc, sfc, vbr;
 //long            reg[16];
 //long            usp, ssp;
-unsigned long   pc;
+uint32 pc;
 unsigned short  inst;
 #define GetInst() GetMemW (pc)
 
@@ -156,7 +156,7 @@ void            SetSRW(unsigned short sr)
 
 void            ExceptionGroup0(
         int number,
-        unsigned long address,
+        uint32 address,
         int ReadWrite)
 {
     short sr = GetSRW(), context = 0;

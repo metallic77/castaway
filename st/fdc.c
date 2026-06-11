@@ -90,7 +90,7 @@ void            FDCCommand(void)
     int             sides, drives;
     long            address;    /* dma target/source address */
     long            offset;     /* offset in disk file */
-    unsigned long   count;      /* number of byte to transfer */
+    uint32 count;      /* number of byte to transfer */
     char           *buffer;
 
     /* DMA target/source address */

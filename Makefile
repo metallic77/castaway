@@ -6,8 +6,8 @@
 CC = gcc
 
 # SDL-Library configuration:
-SDLLIBS  = $(shell sdl-config --libs)
-SDLFLAGS = $(shell sdl-config --cflags)
+SDLLIBS  = $(shell sdl2-config --libs 2>/dev/null || sdl-config --libs)
+SDLFLAGS = $(shell sdl2-config --cflags 2>/dev/null || sdl-config --cflags)
 #SDLLIBS  = -L. -lSDLmain -lsdl
 
 #INCS = -I. -Icpu -Ist -I/usr/X11R6/include/X11
@@ -17,7 +17,7 @@ WRNS = -Wall -Wno-unused
 LIBS =  $(SDLLIBS) #-lc -L/usr/X11R6/lib -lX11
 DEFS = -Di386 # or -Dsun4
 
-CFLAGS = -s $(OPTS) $(DEFS) $(WRNS) $(INCS) $(SDLFLAGS)
+CFLAGS = $(OPTS) $(DEFS) $(WRNS) $(INCS) $(SDLFLAGS)
 
 #
 # source code 

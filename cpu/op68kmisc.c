@@ -36,7 +36,7 @@ static char     sccsid[] = "$Id: op68kmisc.c,v 1.13 2002/11/13 01:04:30 jhoenig 
 void            Code(void)\
 {\
     Decl(source)\
-    unsigned long address;\
+    uint32 address;\
     unsigned short ext = GetMPCW();\
     unsigned short index = ext >> 12;\
     if (!GetS()) { ExceptionGroup1(PRIV); };\

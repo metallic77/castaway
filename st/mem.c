@@ -228,7 +228,7 @@ static uint16   RomGetW (uint32 address)
     return ReadW(address + rombase);
 }
 
-static uint32   RomGetL (unsigned long address)
+static uint32 RomGetL(uint32 address)
 {
     return ReadL(address + rombase);
 }

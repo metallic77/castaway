@@ -71,7 +71,7 @@
 /* Group 0 exceptions (address error / bus error) */
 extern void     ExceptionGroup0(
         int number,             /* trap number */
-        unsigned long address,  /* fault address */
+        uint32 address,  /* fault address */
         int ReadWrite);         /* read = true, write = false */
 /* Group 1 exceptions: illegal instruction, privilege violation, interrupts */
 extern void     ExceptionGroup1(int number);
@@ -109,13 +109,13 @@ extern unsigned CPURun(unsigned count);
  */
 /* Data and address registers are stored in native byte order.
  * register numbering: 0=d0, 1=d1, ..., 8=a0, 9=a1, ... 15=a7 */
-extern unsigned long    reg[16], *areg, usp, ssp;
-extern unsigned long    pc;
+extern uint32 reg[16], *areg, usp, ssp;
+extern uint32 pc;
 extern unsigned short   inst;
 /* 68010 registers */
-extern unsigned long    dfc, sfc, vbr;
+extern uint32 dfc, sfc, vbr;
 /* 68020 registers */
-extern unsigned long    caar, cacr, isp, msp;
+extern uint32 caar, cacr, isp, msp;
 
 /*
  * Choose status register implementation
@@ -177,21 +177,21 @@ extern int      QueryIRQ(int level); /* get interrupt vector number */
 #define MEMBANKSIZE (MEMADDRSIZE / MEMTABLESIZE)
 #define MEMBANKMASK (MEMBANKSIZE - 1)
 #if 1
-extern void     (*mem_set_b[MEMTABLESIZE]) (unsigned long address, unsigned char value);
-extern void     (*mem_set_w[MEMTABLESIZE]) (unsigned long address, unsigned short value);
-extern void     (*mem_set_l[MEMTABLESIZE]) (unsigned long address, unsigned long value);
-extern unsigned char     (*mem_get_b[MEMTABLESIZE]) (unsigned long address);
-extern unsigned short    (*mem_get_w[MEMTABLESIZE]) (unsigned long address);
-extern unsigned long     (*mem_get_l[MEMTABLESIZE]) (unsigned long address);
+extern void     (*mem_set_b[MEMTABLESIZE]) (uint32 address, uint8 value);
+extern void     (*mem_set_w[MEMTABLESIZE]) (uint32 address, uint16 value);
+extern void     (*mem_set_l[MEMTABLESIZE]) (uint32 address, uint32 value);
+extern unsigned char     (*mem_get_b[MEMTABLESIZE]) (uint32 address);
+extern unsigned short    (*mem_get_w[MEMTABLESIZE]) (uint32 address);
+extern uint32     (*mem_get_l[MEMTABLESIZE]) (uint32 address);
 #endif
 /* Fetch byte from address */
-INLINE char GetMemB(unsigned long address)
+INLINE char GetMemB(uint32 address)
 {
     address &= MEMADDRMASK;
     return (*mem_get_b[address >> MEMIDXSHIFT]) (address);
 }
 /* Fetch word, address may not be word-aligned */
-INLINE short GetMemW(unsigned long address)
+INLINE short GetMemW(uint32 address)
 {
 #ifdef CHKADDRESSERR
     if (address & 0x1) ExceptionGroup0(ADDRESSERR, address, 1);
@@ -200,7 +200,7 @@ INLINE short GetMemW(unsigned long address)
     return (*mem_get_w[address >> MEMIDXSHIFT]) (address);
 }
 /* Fetch dword, address may not be dword-aligned */
-INLINE long GetMemL(unsigned long address)
+INLINE long GetMemL(uint32 address)
 {
 #ifdef CHKADDRESSERR
     if (address & 0x1) ExceptionGroup0(ADDRESSERR, address, 1);
@@ -209,12 +209,12 @@ INLINE long GetMemL(unsigned long address)
     return (*mem_get_l[address >> MEMIDXSHIFT]) (address);
 }
 /* Write byte to address */
-INLINE void SetMemB (unsigned long address, unsigned char value) {
+INLINE void SetMemB(uint32 address, unsigned char value) {
     address &= MEMADDRMASK;
     (*mem_set_b[address >> MEMIDXSHIFT]) (address, value);
 }
 /* Write word, address may not be word-aligned */
-INLINE void SetMemW(unsigned long address, unsigned short value)
+INLINE void SetMemW(uint32 address, unsigned short value)
 {
 #ifdef CHKADDRESSERR
     if (address & 0x1) ExceptionGroup0(ADDRESSERR, address, 0);
@@ -223,7 +223,7 @@ INLINE void SetMemW(unsigned long address, unsigned short value)
     (*mem_set_w[address >> MEMIDXSHIFT]) (address, value);
 }
 /* Write dword, address may not be dword-aligned */
-INLINE void SetMemL(unsigned long address, unsigned long value)
+INLINE void SetMemL(uint32 address, uint32 value)
 {
 #ifdef CHKADDRESSERR
     if (address & 0x1) ExceptionGroup0(ADDRESSERR, address, 0);
@@ -252,7 +252,7 @@ struct state {
 #endif
 };
 extern int             hide_supervisor;
-extern unsigned long   instcnt;
+extern uint32 instcnt;
 extern int             tbi;
 extern struct state    traceback[TRACEBACK];
 extern int             trace_on;
