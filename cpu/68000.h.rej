@@ -1,0 +1,10 @@
+--- cpu/68000.h	2026-06-11 13:13:25.568881508 +0000
++++ cpu/68000.h	2026-06-11 14:09:01.249921745 +0000
+@@ -144,6 +144,7 @@
+ extern char     cpu_state;      /* 0, 1, 2 while processing exceptions,
+                                  * -1 executing, -2 stopped, -3 shutdown */
+ extern unsigned cpu_type;       /* 68000, 68010 */
++extern unsigned long cpu_cycles; /* total cycles executed (8 MHz clock) */
+ 
+ /*
+  * Interrupts

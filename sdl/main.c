@@ -170,6 +170,7 @@ static inline SDL_GrabMode SDL_WM_GrabInput(SDL_GrabMode mode)
 #include "SDL_main.h"
 
 #include "68000.h"
+#include "cycles68000.h"
 #include "st.h"
 
 #define min(A,B) (A)<(B)?(A):(B);
@@ -718,61 +719,64 @@ int     main(int argc, char *argv[])
     SDL_EventState(SDL_QUIT,            SDL_ENABLE);
 
     {
-        unsigned    timer_tics;
-        unsigned    refresh_tics;
-        unsigned    disp_tics;
-        unsigned    disp_interval_start;
-        double      mips = 0.0;
-        unsigned    disp_count = 0;
-        unsigned    ips_count = 0;
-        unsigned    ips_tics = 0;
-        char        drop_flag = 0; /* timer dropped */
-        timer_tics = refresh_tics = ips_tics = disp_tics = SDL_GetTicks();
+        /*
+         * Cycle-accurate timing for the Atari ST.
+         * The 68000 runs at 8 MHz = 8,000,000 cycles/sec.
+         * VBlank at 50 Hz     = every 160,000 cycles
+         * IOTimer at 200 Hz   = every  40,000 cycles
+         * Run ~8000 cycles per burst (1ms of real ST time)
+         */
+#define ST_CLOCK_HZ     8000000UL
+#define CYCLES_PER_VBLANK   (ST_CLOCK_HZ / 50)     /* 160000 */
+#define CYCLES_PER_IOTIMER  (ST_CLOCK_HZ / 200)    /*  40000 */
+#define CYCLES_PER_BURST    8000                    /* ~1ms burst */
+
+        unsigned long   vblank_next  = cpu_cycles + CYCLES_PER_VBLANK;
+        unsigned long   iotimer_next = cpu_cycles + CYCLES_PER_IOTIMER;
+        unsigned        disp_tics    = SDL_GetTicks();
+        unsigned        disp_interval_start = disp_tics;
+        double          mips         = 0.0;
+        unsigned        disp_count   = 0;
+        unsigned long   emu_ms       = 0;
+        unsigned long   wall_ms_base = SDL_GetTicks();
         while (1) {
             unsigned tics, count;
-            if (drop_flag || IkbdQueryBuffer()) {
-                /* more I/O pending, or delayed timer c interrupt */
-                drop_flag = 0;
-                count = CPURun(1000);
-            } else if (ips > 0) {
-                /* instructions per second preset mode */
-                if ((ips * INTERVAL) / 1000 > ips_count) {
-                    count = CPURun(((ips * INTERVAL) / 1000) - ips_count);
-                } else {
-                    /* delay while interval not full */
-                    while (SDL_GetTicks() < ips_tics + INTERVAL) {
-                        SDL_Delay(1);
-                    }
-                    ips_tics += INTERVAL;
-                    ips_count = 0;
-                }
+
+            /* Run a burst of CPU cycles */
+            if (IkbdQueryBuffer()) {
+                count = CPURun(500);
             } else {
-                /* unlimited speed mode */
-                count = CPURun(0);
+                count = CPURun(CYCLES_PER_BURST / 10); /* ~800 instructions */
             }
-            ips_count += count;
             disp_count += count;
+
             if (count == 0) {
-                /* cpu stopped or shutdown */
-                SDL_Delay(10);
+                SDL_Delay(1);
             }
-            tics = SDL_GetTicks();
-            if (tics > timer_tics + TIMER_INTERVAL) {
-                /* 200Hz timer interrupt (5ms) */
-                timer_tics += TIMER_INTERVAL;
+
+            /* Cycle-based IOTimer (200 Hz) */
+            while (cpu_cycles >= iotimer_next) {
+                iotimer_next += CYCLES_PER_IOTIMER;
                 IOTimer();
-                if (tics > timer_tics + TIMER_INTERVAL) {
-                    /* try to avoid dropping timer interrupts */
-                    drop_flag = 1;
-                }
                 Main_EventHandler();
             }
-            if (tics > refresh_tics + REFRESH_INTERVAL) {
-                /* screen refresh */
-                refresh_tics = tics;
+
+            /* Cycle-based VBlank (50 Hz) */
+            if (cpu_cycles >= vblank_next) {
+                vblank_next += CYCLES_PER_VBLANK;
                 Redraw();
                 VBlank();
+                  /* Real-time throttle */
+            emu_ms = cpu_cycles / (ST_CLOCK_HZ / 1000);
+            {
+                unsigned long wall_ms = SDL_GetTicks() - wall_ms_base;
+                if (emu_ms > wall_ms + 1)
+                    SDL_Delay(emu_ms - wall_ms - 1);
             }
+            }
+
+            /* Caption update (wall clock, ~10 Hz) */
+            tics = SDL_GetTicks();
             if (tics > disp_tics + DISP_INTERVAL) {
                 /* Calculate how many millions of instructions are
                  * executed per second, and update caption accordingly.

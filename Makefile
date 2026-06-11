@@ -46,8 +46,15 @@ GUI_COBJ = $(GUI_CSRC:%.c=obj/%.o)
 
 COBJ = $(EMU_COBJ) $(CPU_COBJ) $(GUI_COBJ)
 
-OBJECTS = $(COBJ) obj/emu2149.o
+OBJECTS = $(COBJ) obj/emu2149.o obj/cycles68000.o
+.PHONY: default
+default: castaway
 
+obj/emu2149.o: emu2149.c emu2149.h
+	$(CC) $(CFLAGS) -c emu2149.c -o obj/emu2149.o
+
+obj/cycles68000.o: cpu/cycles68000.c cpu/cycles68000.h
+	$(CC) $(CFLAGS) -c cpu/cycles68000.c -o obj/cycles68000.o
 #
 # production targets 
 # 

@@ -37,6 +37,7 @@ static char     sccsid[] = "$Id: 68000.c,v 1.20 2002/10/30 16:23:04 jhoenig Exp 
 
 #include "op68k.h"
 #include "proto.h"
+#include "cycles68000.h"
 
 #if (CPU_TYPE == 68000 || CPU_TYPE == 68008)
 #include "op68000.c"
@@ -368,6 +369,7 @@ unsigned        CPURun(unsigned count)
 #endif
             pc += 2;
             (*jmp_table[inst >> 3])();
+            cpu_cycles += cycle_table[inst >> 3];
             Trace();
         } while (executed++ < cpu_count || cpu_count == 0);
     } else {
@@ -383,6 +385,7 @@ unsigned        CPURun(unsigned count)
 #endif
             pc += 2;
             (*jmp_table[inst >> 3])();
+            cpu_cycles += cycle_table[inst >> 3];
         } while (executed++ < cpu_count || cpu_count == 0);
 #else
         /* check for interrupts,
@@ -392,27 +395,35 @@ unsigned        CPURun(unsigned count)
             inst = GetInst ();
             pc += 2;
             (*jmp_table[inst >> 3])();
+            cpu_cycles += cycle_table[inst >> 3];
             inst = GetInst ();
             pc += 2;
             (*jmp_table[inst >> 3])();
+            cpu_cycles += cycle_table[inst >> 3];
             inst = GetInst ();
             pc += 2;
             (*jmp_table[inst >> 3])();
+            cpu_cycles += cycle_table[inst >> 3];
             inst = GetInst ();
             pc += 2;
             (*jmp_table[inst >> 3])();
+            cpu_cycles += cycle_table[inst >> 3];
             inst = GetInst ();
             pc += 2;
             (*jmp_table[inst >> 3])();
+            cpu_cycles += cycle_table[inst >> 3];
             inst = GetInst ();
             pc += 2;
             (*jmp_table[inst >> 3])();
+            cpu_cycles += cycle_table[inst >> 3];
             inst = GetInst ();
             pc += 2;
             (*jmp_table[inst >> 3])();
+            cpu_cycles += cycle_table[inst >> 3];
             inst = GetInst ();
             pc += 2;
             (*jmp_table[inst >> 3])();
+            cpu_cycles += cycle_table[inst >> 3];
         } while ((executed += 8) < cpu_count || cpu_count == 0);
 #endif
     }
