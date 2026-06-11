@@ -30,6 +30,14 @@ static char     sccsid[] = "$Id: main.c,v 1.16 2002/09/22 22:08:37 jhoenig Exp $
  * This avoids rewriting any of the inner render loops.
  */
 
+/*
+ * SDL2 backend for Castaway
+ * - 768x496 8bpp surface (320x200 ST image + 64px/48px borders, doubled)
+ * - Displayed at 640x496 logical size for 4:3 PAR correction
+ * - Bilinear filtering via SDL_HINT_RENDER_SCALE_QUALITY
+ * - Window opens at 960x744 (1.5x the logical size)
+ */
+
 #if SDL_MAJOR_VERSION >= 2
 
 /* ---- type renames ---- */
@@ -46,119 +54,90 @@ typedef SDL_Keycode SDLKey;
 #define SDLK_KP8 SDLK_KP_8
 #define SDLK_KP9 SDLK_KP_9
 
-/* ---- SDL2 global state ---- */
-static SDL_Window   *sdl2_win    = NULL;
-static SDL_Renderer *sdl2_rend   = NULL;
-static SDL_Texture  *sdl2_tex    = NULL;  /* ARGB8888, 768x496 (384x248 * 2 with borders) */
+/* ---- SDL2 globals ---- */
+static SDL_Window   *sdl2_win  = NULL;
+static SDL_Renderer *sdl2_rend = NULL;
+static SDL_Texture  *sdl2_tex  = NULL;  /* 768x496 ARGB streaming */
+static Uint32        sdl2_argb_pal[256];
 
-/* ARGB palette: updated by SDL_SetPalette, used at flip time */
-static Uint32 sdl2_argb_pal[256];  /* 256 entries, but only 0-15 used */
-
-/* Expand-and-flip: read 8bpp indexed surface, write ARGB to texture */
+/* Expand 8bpp indexed surface to ARGB and upload to texture */
 static void sdl2_present(SDL_Surface *src)
 {
     static Uint32 argb_buf[768 * 496];
-    int x, y;
-    Uint8  *sp;
-    Uint32 *dp;
-    int w = src->w, h = src->h;
-
+    int x, y, w = src->w, h = src->h;
     SDL_LockSurface(src);
     for (y = 0; y < h; y++) {
-        sp = (Uint8 *)src->pixels + y * src->pitch;
-        dp = argb_buf + y * w;
+        Uint8  *sp = (Uint8 *)src->pixels + y * src->pitch;
+        Uint32 *dp = argb_buf + y * w;
         for (x = 0; x < w; x++)
             dp[x] = sdl2_argb_pal[sp[x]];
     }
     SDL_UnlockSurface(src);
-
     SDL_UpdateTexture(sdl2_tex, NULL, argb_buf, w * sizeof(Uint32));
-    SDL_RenderClear(sdl2_rend);
     SDL_RenderCopy(sdl2_rend, sdl2_tex, NULL, NULL);
     SDL_RenderPresent(sdl2_rend);
 }
 
-/* ---- SDL_SetVideoMode ---- */
+/* SDL_SetVideoMode replacement */
 static SDL_Surface *SDL1_SetVideoMode(int w, int h, int bpp, Uint32 flags)
 {
     (void)bpp; (void)flags;
-    /* 4x integer scale: 768x496 -> 1536x992 (fits in 1080p) */
-    int win_w = w * 2;
-    int win_h = h * 2;
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
     sdl2_win = SDL_CreateWindow("Castaway",
-                                SDL_WINDOWPOS_UNDEFINED,
-                                SDL_WINDOWPOS_UNDEFINED,
-                                win_w, win_h,
-                                SDL_WINDOW_RESIZABLE);
+                SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+                960, 744, SDL_WINDOW_RESIZABLE);
     if (!sdl2_win) return NULL;
     sdl2_rend = SDL_CreateRenderer(sdl2_win, -1,
-                                   SDL_RENDERER_ACCELERATED |
-                                   SDL_RENDERER_PRESENTVSYNC);
+                SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!sdl2_rend) return NULL;
-    /* Integer scaling: each ST pixel = exactly 2 screen pixels */
-    SDL_RenderSetIntegerScale(sdl2_rend, SDL_TRUE);
-    SDL_RenderSetLogicalSize(sdl2_rend, w, h);
-    sdl2_tex = SDL_CreateTexture(sdl2_rend,
-                                 SDL_PIXELFORMAT_ARGB8888,
-                                 SDL_TEXTUREACCESS_STREAMING,
-                                 w, h);
+    /* Logical size 640x496: SDL stretches 768x496 texture to 640x496,
+     * correcting the ST pixel aspect ratio (non-square pixels). */
+    SDL_RenderSetLogicalSize(sdl2_rend, 640, 496);
+    sdl2_tex = SDL_CreateTexture(sdl2_rend, SDL_PIXELFORMAT_ARGB8888,
+                SDL_TEXTUREACCESS_STREAMING, w, h);
     if (!sdl2_tex) return NULL;
-
-    /* Default palette: all black, index 0 = white, index 1 = black (mono) */
+    /* Default palette */
     {
-        int pi;
-        for (pi = 0; pi < 256; pi++) sdl2_argb_pal[pi] = 0xFF000000u;
-        sdl2_argb_pal[0] = 0xFFFFFFFFu;  /* white */
+        int i;
+        for (i = 0; i < 256; i++) sdl2_argb_pal[i] = 0xFF000000u;
+        sdl2_argb_pal[0] = 0xFFFFFFFFu;
     }
-
-    /* 8bpp surface — same as SDL1 code expects */
-    SDL_Surface *s = SDL_CreateRGBSurface(0, w, h, 8, 0, 0, 0, 0);
-    return s;
+    return SDL_CreateRGBSurface(0, w, h, 8, 0, 0, 0, 0);
 }
 #define SDL_SetVideoMode SDL1_SetVideoMode
 
-/* ---- SDL_SetPalette: store ARGB palette for use at flip time ---- */
+/* SDL_SetPalette */
 #define SDL_LOGPAL 1
 #define SDL_PHYSPAL 2
 static inline void SDL1_SetPalette(SDL_Surface *s, int flags,
                                    SDL_Color *colors, int first, int ncolors)
 {
-    int i;
-    (void)s; (void)flags;
+    int i; (void)s; (void)flags;
     for (i = 0; i < ncolors; i++) {
         SDL_Color *c = &colors[first + i];
         sdl2_argb_pal[first + i] = 0xFF000000u
-            | ((Uint32)c->r << 16)
-            | ((Uint32)c->g <<  8)
-            | ((Uint32)c->b      );
+            | ((Uint32)c->r << 16) | ((Uint32)c->g << 8) | c->b;
     }
 }
 #define SDL_SetPalette(s,f,c,first,n) SDL1_SetPalette(s,f,c,first,n)
 
-/* ---- SDL_Flip: expand 8bpp -> ARGB and present ---- */
-static inline int SDL1_Flip(SDL_Surface *s)
-{
-    sdl2_present(s);
-    return 0;
-}
+/* SDL_Flip */
+static inline int SDL1_Flip(SDL_Surface *s) { sdl2_present(s); return 0; }
 #define SDL_Flip(s) SDL1_Flip(s)
 
-/* SDL_UpdateRect -> no-op; full present happens in SDL_Flip */
+/* SDL_UpdateRect -> no-op */
 #define SDL_UpdateRect(s,x,y,w,h) ((void)0)
 
-/* ---- SDL_WM_SetCaption ---- */
-static inline void SDL1_WM_SetCaption(const char *title, const char *icon)
-{
-    (void)icon;
-    if (sdl2_win) SDL_SetWindowTitle(sdl2_win, title);
-}
+/* SDL_WM_SetCaption */
+static inline void SDL1_WM_SetCaption(const char *t, const char *i)
+{ (void)i; if (sdl2_win) SDL_SetWindowTitle(sdl2_win, t); }
 #define SDL_WM_SetCaption SDL1_WM_SetCaption
 
-/* ---- SDL_WM_GrabInput ---- */
+/* SDL_WM_GrabInput */
 typedef int SDL_GrabMode;
-#define SDL_GRAB_QUERY  (-1)
-#define SDL_GRAB_ON      1
-#define SDL_GRAB_OFF     0
+#define SDL_GRAB_QUERY (-1)
+#define SDL_GRAB_ON     1
+#define SDL_GRAB_OFF    0
 static inline SDL_GrabMode SDL_WM_GrabInput(SDL_GrabMode mode)
 {
     if (!sdl2_win) return SDL_GRAB_OFF;
@@ -482,7 +461,7 @@ unsigned int    Timer(unsigned int interval, void *param)
 
 int     keysymToAtari(SDL_keysym keysym)
 {
-    static int offset = 0;     // SDL2 scancodes match AT scancodes on x86 Linux
+    static int offset = -1;     // uninitialized scancode offset
 
     switch(keysym.sym) {
         // Numeric Pad
