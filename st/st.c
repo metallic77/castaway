@@ -38,7 +38,7 @@ static char     sccsid[] = "$Id: st.c,v 1.15 2002/10/25 22:26:29 jhoenig Exp $";
 /*
  * startup display mode
  */
-int             display_mode = MONO;
+int             display_mode = COL4;
 
 /*
  * I/O Registers

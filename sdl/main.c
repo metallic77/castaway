@@ -49,7 +49,7 @@ typedef SDL_Keycode SDLKey;
 /* ---- SDL2 global state ---- */
 static SDL_Window   *sdl2_win    = NULL;
 static SDL_Renderer *sdl2_rend   = NULL;
-static SDL_Texture  *sdl2_tex    = NULL;  /* ARGB8888, 640x400 */
+static SDL_Texture  *sdl2_tex    = NULL;  /* ARGB8888, 768x496 (384x248 * 2 with borders) */
 
 /* ARGB palette: updated by SDL_SetPalette, used at flip time */
 static Uint32 sdl2_argb_pal[256];  /* 256 entries, but only 0-15 used */
@@ -57,7 +57,7 @@ static Uint32 sdl2_argb_pal[256];  /* 256 entries, but only 0-15 used */
 /* Expand-and-flip: read 8bpp indexed surface, write ARGB to texture */
 static void sdl2_present(SDL_Surface *src)
 {
-    static Uint32 argb_buf[640 * 400];
+    static Uint32 argb_buf[768 * 496];
     int x, y;
     Uint8  *sp;
     Uint32 *dp;
@@ -82,16 +82,21 @@ static void sdl2_present(SDL_Surface *src)
 static SDL_Surface *SDL1_SetVideoMode(int w, int h, int bpp, Uint32 flags)
 {
     (void)bpp; (void)flags;
+    /* 4x integer scale: 768x496 -> 1536x992 (fits in 1080p) */
+    int win_w = w * 2;
+    int win_h = h * 2;
     sdl2_win = SDL_CreateWindow("Castaway",
                                 SDL_WINDOWPOS_UNDEFINED,
                                 SDL_WINDOWPOS_UNDEFINED,
-                                w * 2, h * 2,
+                                win_w, win_h,
                                 SDL_WINDOW_RESIZABLE);
     if (!sdl2_win) return NULL;
     sdl2_rend = SDL_CreateRenderer(sdl2_win, -1,
                                    SDL_RENDERER_ACCELERATED |
                                    SDL_RENDERER_PRESENTVSYNC);
     if (!sdl2_rend) return NULL;
+    /* Integer scaling: each ST pixel = exactly 2 screen pixels */
+    SDL_RenderSetIntegerScale(sdl2_rend, SDL_TRUE);
     SDL_RenderSetLogicalSize(sdl2_rend, w, h);
     sdl2_tex = SDL_CreateTexture(sdl2_rend,
                                  SDL_PIXELFORMAT_ARGB8888,
@@ -261,6 +266,10 @@ void    Redraw(void)
     VideoOffset |= vid_basem;
     VideoOffset <<= 8;
     VideoMemory = ((unsigned char *)membase) + VideoOffset;
+    /* ScreenMemory points to top-left of surface.
+     * BORDER_X/Y define the pixel offset where the ST display starts. */
+#define BORDER_X 64
+#define BORDER_Y 48
     ScreenMemory = screen->pixels;
 
     if (vid_flag) {
@@ -327,6 +336,8 @@ void    Redraw(void)
         VideoRamSetB, VideoRamSetW, VideoRamSetL, RamGetB, RamGetW, RamGetL);
     /* copy Video Ram to Screen */
     SDL_LockSurface(screen);
+    /* Fill entire surface with color index 0 (border color) */
+    memset(screen->pixels, 0, screen->pitch * screen->h);
     for (i = 0; i < update_rect_count; i++) {
         register unsigned char *line_i;
         register uint32 *line_o, *line_o1, *line_o2;
@@ -335,7 +346,9 @@ void    Redraw(void)
         switch (vid_shiftmode) {
         case MONO:
             line_i = update_rect[i].vid_begin + membase;
-            line_o = (uint32 *)(ScreenMemory + 8 * (update_rect[i].vid_begin - VideoOffset));
+            line_o = (uint32 *)(ScreenMemory
+                      + BORDER_Y * screen->pitch + BORDER_X
+                      + 8 * (update_rect[i].vid_begin - VideoOffset));
             while (line_i < (unsigned char *)(update_rect[i].vid_end + membase)) {
                 *line_o++ = vm2bm1[*line_i];
                 *line_o++ = vm2bm2[*line_i++];
@@ -344,8 +357,8 @@ void    Redraw(void)
         case COL2:
             line_i = VideoMemory + update_rect[i].top * 80;
             for (row = update_rect[i].top; row < update_rect[i].top + update_rect[i].height; row += 2) {
-                line_o1 = (uint32 *)(ScreenMemory + screen->pitch * row);
-                line_o2 = (uint32 *)(ScreenMemory + screen->pitch * (row + 1));
+                line_o1 = (uint32 *)(ScreenMemory + screen->pitch * (row + BORDER_Y) + BORDER_X);
+                line_o2 = (uint32 *)(ScreenMemory + screen->pitch * (row + BORDER_Y + 1) + BORDER_X);
                 for (col = 0; col < 80; col += 2) {
                     register uint32 val;
                     val = (vm2bm1[*line_i])
@@ -371,8 +384,8 @@ void    Redraw(void)
         case COL4:
             line_i = VideoMemory + update_rect[i].top * 80;
             for (row = update_rect[i].top; row < update_rect[i].top + update_rect[i].height; row += 2) {
-                line_o1 = (uint32 *)(ScreenMemory + screen->pitch * row);
-                line_o2 = (uint32 *)(ScreenMemory + screen->pitch * (row + 1));
+                line_o1 = (uint32 *)(ScreenMemory + screen->pitch * (row + BORDER_Y) + BORDER_X);
+                line_o2 = (uint32 *)(ScreenMemory + screen->pitch * (row + BORDER_Y + 1) + BORDER_X);
                 for (col = 0; col < 80; col += 4) {
                     register uint32 val;
                     unsigned short val0 = pixdup[*line_i++];
@@ -469,7 +482,7 @@ unsigned int    Timer(unsigned int interval, void *param)
 
 int     keysymToAtari(SDL_keysym keysym)
 {
-    static int offset = -1;     // uninitialized scancode offset
+    static int offset = 0;     // SDL2 scancodes match AT scancodes on x86 Linux
 
     switch(keysym.sym) {
         // Numeric Pad
@@ -562,7 +575,7 @@ int     keysymToAtari(SDL_keysym keysym)
                 case SDLK_m:        offset = scanPC - 0x32; break;
                 case SDLK_CAPSLOCK: offset = scanPC - 0x3a; break;
                 case SDLK_LSHIFT:   offset = scanPC - 0x2a; break;
-                case SDLK_LCTRL:    offset = scanPC - 0x1d; break;
+                /* LCTRL excluded - used for joystick fire */
                 case SDLK_LALT:     offset = scanPC - 0x38; break;
                 case SDLK_F1:       offset = scanPC - 0x3b; break;
                 case SDLK_F2:       offset = scanPC - 0x3c; break;
@@ -616,20 +629,20 @@ void    Main_EventHandler(void)
             if( sym==SDLK_PAUSE && shifted ) {
                 exit(0);
             }
-            /* Joystick 1 emulation via cursor keys + left ctrl */
-            if (sym == SDLK_UP)    { IkbdJoystickChange(1, joystick1_state |= 0x01); break; }
-            if (sym == SDLK_DOWN)  { IkbdJoystickChange(1, joystick1_state |= 0x02); break; }
-            if (sym == SDLK_LEFT)  { IkbdJoystickChange(1, joystick1_state |= 0x04); break; }
-            if (sym == SDLK_RIGHT) { IkbdJoystickChange(1, joystick1_state |= 0x08); break; }
-            if (sym == SDLK_LCTRL) { IkbdJoystickChange(1, joystick1_state |= 0x80); break; }
+            /* Joystick emulation via cursor keys + left ctrl - send to both ports */
+            if (sym == SDLK_UP)    { joystick1_state |= 0x01; IkbdJoystickChange(0, joystick1_state); IkbdJoystickChange(1, joystick1_state); break; }
+            if (sym == SDLK_DOWN)  { joystick1_state |= 0x02; IkbdJoystickChange(0, joystick1_state); IkbdJoystickChange(1, joystick1_state); break; }
+            if (sym == SDLK_LEFT)  { joystick1_state |= 0x04; IkbdJoystickChange(0, joystick1_state); IkbdJoystickChange(1, joystick1_state); break; }
+            if (sym == SDLK_RIGHT) { joystick1_state |= 0x08; IkbdJoystickChange(0, joystick1_state); IkbdJoystickChange(1, joystick1_state); break; }
+            if (sym == SDLK_LCTRL) { joystick1_state |= 0x80; IkbdJoystickChange(0, joystick1_state); IkbdJoystickChange(1, joystick1_state); break; }
             IkbdKeyPress(keysymToAtari(keysym));
             break;
         case SDL_KEYUP:
-            if (sym == SDLK_UP)    { IkbdJoystickChange(1, joystick1_state &= ~0x01); break; }
-            if (sym == SDLK_DOWN)  { IkbdJoystickChange(1, joystick1_state &= ~0x02); break; }
-            if (sym == SDLK_LEFT)  { IkbdJoystickChange(1, joystick1_state &= ~0x04); break; }
-            if (sym == SDLK_RIGHT) { IkbdJoystickChange(1, joystick1_state &= ~0x08); break; }
-            if (sym == SDLK_LCTRL) { IkbdJoystickChange(1, joystick1_state &= ~0x80); break; }
+            if (sym == SDLK_UP)    { joystick1_state &= ~0x01; IkbdJoystickChange(0, joystick1_state); IkbdJoystickChange(1, joystick1_state); break; }
+            if (sym == SDLK_DOWN)  { joystick1_state &= ~0x02; IkbdJoystickChange(0, joystick1_state); IkbdJoystickChange(1, joystick1_state); break; }
+            if (sym == SDLK_LEFT)  { joystick1_state &= ~0x04; IkbdJoystickChange(0, joystick1_state); IkbdJoystickChange(1, joystick1_state); break; }
+            if (sym == SDLK_RIGHT) { joystick1_state &= ~0x08; IkbdJoystickChange(0, joystick1_state); IkbdJoystickChange(1, joystick1_state); break; }
+            if (sym == SDLK_LCTRL) { joystick1_state &= ~0x80; IkbdJoystickChange(0, joystick1_state); IkbdJoystickChange(1, joystick1_state); break; }
             IkbdKeyRelease(keysymToAtari(keysym)|0x80);
             break;
         case SDL_MOUSEMOTION:
@@ -675,7 +688,7 @@ int     main(int argc, char *argv[])
     }
     atexit(SDL_Quit);
     Init(argc, argv);
-    screen = SDL_SetVideoMode(640, 400, 8, 0);
+    screen = SDL_SetVideoMode(768, 496, 8, 0);
     SDL_ShowCursor(SDL_DISABLE);
     if (screen == NULL) {
         fprintf(stderr, "SDL_SetVideoMode(): %s\n", SDL_GetError());
@@ -737,11 +750,13 @@ int     main(int argc, char *argv[])
          * VBlank at 50 Hz     = every 160,000 cycles
          * IOTimer at 200 Hz   = every  40,000 cycles
          * Run ~8000 cycles per burst (1ms of real ST time)
+         * Then sleep to keep wall-clock in sync with emulated time.
          */
-#define ST_CLOCK_HZ     8000000UL
+#define ST_CLOCK_HZ         8000000UL
 #define CYCLES_PER_VBLANK   (ST_CLOCK_HZ / 50)     /* 160000 */
 #define CYCLES_PER_IOTIMER  (ST_CLOCK_HZ / 200)    /*  40000 */
-#define CYCLES_PER_BURST    8000                    /* ~1ms burst */
+#define CYCLES_PER_BURST    8000                    /* 1ms of ST time */
+#define CYCLES_PER_MS       (ST_CLOCK_HZ / 1000)   /* 8000 */
 
         unsigned long   vblank_next  = cpu_cycles + CYCLES_PER_VBLANK;
         unsigned long   iotimer_next = cpu_cycles + CYCLES_PER_IOTIMER;
@@ -749,14 +764,17 @@ int     main(int argc, char *argv[])
         unsigned        disp_interval_start = disp_tics;
         double          mips         = 0.0;
         unsigned        disp_count   = 0;
-        unsigned long   emu_ms       = 0;
+
+        /* Real-time sync: track emulated ms vs wall-clock ms */
+        unsigned long   emu_ms       = 0;  /* emulated milliseconds */
         unsigned long   wall_ms_base = SDL_GetTicks();
+
         while (1) {
             unsigned tics, count;
 
-            /* Run a burst of CPU cycles */
+            /* Run exactly 1ms worth of ST cycles */
             if (IkbdQueryBuffer()) {
-                count = CPURun(500);
+                count = CPURun(200);
             } else {
                 count = CPURun(CYCLES_PER_BURST / 10); /* ~800 instructions */
             }
@@ -778,16 +796,17 @@ int     main(int argc, char *argv[])
                 vblank_next += CYCLES_PER_VBLANK;
                 Redraw();
                 VBlank();
-                  /* Real-time throttle */
-            emu_ms = cpu_cycles / (ST_CLOCK_HZ / 1000);
-            {
-                unsigned long wall_ms = SDL_GetTicks() - wall_ms_base;
-                if (emu_ms > wall_ms + 1)
-                    SDL_Delay(emu_ms - wall_ms - 1);
-            }
             }
 
-            /* Caption update (wall clock, ~10 Hz) */
+            /* Real-time throttle: sleep if emulation is running ahead of wall clock */
+            emu_ms = cpu_cycles / CYCLES_PER_MS;
+            {
+                unsigned long wall_ms = SDL_GetTicks() - wall_ms_base;
+                if (emu_ms > wall_ms + 2) {
+                    SDL_Delay(emu_ms - wall_ms - 1);
+                }
+            }
+            /* Caption update (wall clock) */
             tics = SDL_GetTicks();
             if (tics > disp_tics + DISP_INTERVAL) {
                 /* Calculate how many millions of instructions are
