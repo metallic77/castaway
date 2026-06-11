@@ -1,0 +1,176 @@
+04. Oct. 1995
+- final sccs checkout (switch to RCS)
+
+03. Nov. 1995
+- Added command line switches (main.c)
+- Fixed RTC bus error bug with TOS 1.2
+- Release 1.0pl0
+
+07. Aug. 1996
+- Added error message (monochrome frame buffers, x11.c)
+- Removed sparc assembler optimizations not compatible with recent gcc ver.
+- Release 1.0pl1
+
+01. May 2002
+- final rcs checkout (switch to CVS/sourceforge)            (JH)
+
+23. May to 14. Jun 2002
+- Implemented new GUI using SDL.                            (JH)
+- Improved directory and file structure                     (JH)
+- use of mmap and mprotect (sun4) discontinued, now use     (JH)
+  MAD's memory jump table.                                  (JH)
+- Applied MAD's MFP_TBDR patch. MFP_TBDR always reads 0x1.  (JH)
+  No ROM patches needed anymore.                            (JH)
+- cpu: - Added MAD's BCD instructions (untested).           (JH)
+       - Implemented STOP.                                  (JH)
+
+17. Jun. 2002
+- Adapted castaway for linux (mostly)
+
+18. Jun. 2002
+- sdl/main.c - Added Exit with PAUSE Key and Event filter  (MAD)
+             - moved Thread loop to main loop              (MAD)
+             - Implemented Event handler                   (MAD)
+- st/mem.c   - Assembler optimizations for GCC             (MAD)
+
+19. Jun. 2002
+- cpu/*      - Status register optional as single short    (MAD)
+
+20. Jun. 2002
+- cpu/*      - Yet another implementation for SR            (JH)
+
+26. Jun 2002
+- cpu/*      - Fixed a small ASL bug.                       (JH)
+
+29. Jun. 2002
+- sdl/main.c - Keyhandling imlemented (stolen from Aranym) (MAD)
+
+02. Jul. 2002
+- cpu/*      - Support different CPU types.                 (JH)
+             - Removed MOVE CCR,<EA> from 68000 jump table. (JH)
+
+05. Jul. 2002
+- st/mem.c   - precalculate rombase, that address can simply
+               be added later                              (MAD)
+             - changed memset values to unsigned, faster!  (MAD)
+
+09. Jul. 2002
+- sdl/main.c - Fixed display for EmuTOS                     (JH)
+- st/*       - Load any 192k TOS image                      (JH)
+             - Some modifications to make EmuTOS work.      (JH)
+- cpu/*      - fixed EXG Ax,Ay CPU jump table bug           (JH)
+             - ROXL/ROXR: X-flag not modified when shift
+               count is 0 (minor bugfix)                    (JH)
+             - STOP should work now (untested)              (JH)
+             - Added disassembler: Trace now disassembles
+               executed instructions                        (JH)
+- doc/*      - updated documentation                        (JH)
+- config.h   - default memory now 4 Mb                     (MAD)
+
+09. Jul. 2002
+- st/mem.c   - now able to load any ROM size up to 512K    (MAD)
+
+****************************************************************
+* Release: Castaway 0.9.0.1                                    *
+* CVS Tag: V-0-9-0-1                                           *
+* Release Date: 06. Aug. 2002                                  *
+****************************************************************
+
+11. Jul. 2002
+- cpu/*      - added areg[], for readability               (MAD)
+
+13. Jul. 2002
+- st/mem.c   - read and write of WORDs asm optimized       (MAD)
+
+16. Jul. 2002
+? */*        ? Repository branch MAD_memory_2:
+               Experimental encapsulation of memory system (MAD)
+
+22. Aug. 2002
+- sdl/main.c - Improved cpu state and mips display          (JH)
+- cpu/debug.c - Shift instns. now disassembled correctly    (JH)
+- st/*       - fixed IO word/long access sign bug           (JH)
+? st/*       ? Repository branch JH_TOS206_patches:
+               Testing TOS 2.06 support                     (JH)
+
+27. Aug. 2002
+- cpu/*      - Bugfix: Supervisor State and Trace bit of
+               SR now reported correctly in bus error/address
+               error stack frame.
+             - Fixed a bug recently introduced for some cases
+               of ANDI/EORI/ORI instructions.
+             - added 68010 instructions and registers       (JH)
+
+31. Aug. 2002
+- cpu/*      - fixed 68010 stack frames                     (JH)
+
+10. Sep. 2002
+- cpu/*      - Fixed MOVE to/from CCR: word size            (JH)
+             - Fixed trace disassembly for 0x0... opcodes   (JH)
+             - SR implementations 0 and 1 fixed             (JH)
+             - Fixed ROXL.L                                 (JH)
+- st/*       - some compatibility issues fixed.             (JH)
+
+15./16. Sep. 2002
+- cpu/*      - wrapped operand types in typedefs            (JH)
+             - Fixed ASL.L (V-flag)                         (JH)
+             - Trace disassembles LINE A/F                  (JH)
+- st/*       - Bugfix: Word access on unmapped I/O address
+               stacked two bus error stack frames. I/O bus
+               error fault address corrected. Merged some
+               code from JH_TOS206_patches branch.          (JH)
+
+17. Sep. 2002
+- cpu/*      - Trace improved: bugfixes,
+               internal instruction execution trace         (JH)
+             - check for address errors (optionally)        (JH)
+
+19. Sep. 2002
+- cpu/*      - fixed dd(Ax,Ry.W) and dd(PC, Ry.W)
+               addressing mode for big endian machines      (JH)
+- st/*       - -h-Option discontinued                       (JH)
+
+22. Sep. 2002
+- sdl/main.c - -i Option (instructions per second) added    (JH)
+
+****************************************************************
+* Release: Castaway 0.9.1                                      *
+* CVS Tag: V-0-9-1                                             *
+* Release Date: 23. Sep. 2002                                  *
+****************************************************************
+
+02. Oct. 2002
+- cpu/*      - (Ax)+ and -(Ax) addressing modes where
+               swapped for shift instns. Thx to
+               olivencia@wanadoo.fr for finding this.       (JH)
+- st/*       - Eliminated a lot of silly bugs introduced
+               recently. Shame on me. No more CPU bus errors
+               from blitter.c::bitblt().                    (JH)
+08. Oct. 2002
+- cpu/*      - fixed ADD.B 0x80+0x80 and similar.           (JH)
+             - TRACE exception support (#define CHKTRACE)   (JH)
+- st/*       - some compatibility issues fixed.             (JH)
+
+25. Oct. 2002
+- cpu/*      - fixed MOVE to SR PC after raise privilege
+               violation exception                          (JH)
+             - improved trace bit support                   (JH)
+- st/*       - added compatibility improvements,
+               MFP auto end-of-interrupt mode.
+               Thx to olivencia@wanadoo.fr.                 (JH)
+
+04. Nov. 2002
+- st/*       - ikbd.c added joystick support                (JH)
+
+13. - 25. Nov. 2002
+- cpu/*      - Fixed BTST Dx,Dy, and etc. for negative Dx
+               values, and 4cb0-4cb7 opcodes.
+               (thx to schtruck@users.sourceforge.net)      (JH)
+             - Changed write order for MOVEP
+               (thx to schtruck@users.sourceforge.net)      (JH)
+
+****************************************************************
+* Release: Castaway 0.9.2                                      *
+* CVS Tag: V-0-9-2                                             *
+* Release Date: Dec 5, 2002                                    *
+****************************************************************

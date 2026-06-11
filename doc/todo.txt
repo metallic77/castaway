@@ -1,0 +1,56 @@
+p = work in progress
+x = done
+d = dropped
+
+Releases planned:
+p Source Code
+  November 2002 - roll out all of the bugfixes (version 0.9.2)
+p Win32 binary
+  November 2002 - roll out all of the bugfixes (version 0.9.2)
+- Windows CE/IPAQ binary
+  no date yet planned - initial release
+
+
+Todo (General):
+x rename variables and macro parameters named bool (C++ keyword).
+x use specifically defined types like uint32 etc. instead of unsigned long
+  to avoid compiler troubles
+- add version.c to Makefile
+
+
+Todo (ST emulation):
+- Merge Andrew's timer implementation into the source
+- Merge schtruck's Pocket PC fdc.c improvements (#define POCKETPC)
+- find out which I/O accesses should raise bus errors, and which shouldn't.
+- patch fdc.c to allow write-protected disks. For disk change detect toggle
+  the write protect bit in the fdc status register for a few VBLs
+- include real-time-clock support.
+- include serial line support. Something like an '-s /dev/ttyx' option
+  to connect to physical serial device.
+- include parallel line support. Something like an '-p /dev/bppx' option
+  to connect to physical parallel device.
+- include sound support.
+- add hard disk (ahdi) support.
+- patch st.c to include cartridge support.
+- implement 68881 FPU in memory-mapped mode to make TOS 2.xx run.
+- the mfp actiive edge register is always ignored. See if this can cause problems
+
+
+Todo (Windows CE GUI)
+- post all of it to CVS
+- get the joystick emulation running with ikbd.c::IkbdJoystickChange
+
+
+Todo (SDL GUI)
+- see if the 16color mode draw routines of the Windows CE GUI improve performance.
+
+
+Todo (M680[234]0):
+- If the addressing register Ax is also moved to memory, the value written
+  is the decremented value for 68020/68030/68040/CPU32.
+x trace of internal CPU operation processing
+
+Dropped from Todo list:
+d make USE_MMAP switch work for linux. Expect factor 1.3 speed increase.
+d make monochrome display mode work on monochrome frame buffers
+d Try and find out if X11-SHM-extensions are useful in X11 GUI (x11.c).
